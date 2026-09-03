@@ -23,7 +23,11 @@ eunseorinSprite.onload = () => {
    DRAW EUNSEORIN
    ========================================= */
 
-function drawEunseorin(ctx, x, y) {
+drawEunseorin(
+  ctx,
+  player.x,
+  player.y
+);
 
   if (!eunseorinLoaded) return;
 
