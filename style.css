@@ -1543,3 +1543,67 @@ input:focus-visible{
   }
 
 }
+/* ================================
+   DIALOG / CHAT FIX
+   ================================ */
+
+.dialog {
+  position: fixed !important;
+
+  left: 50% !important;
+  bottom: 38px !important;
+  top: auto !important;
+
+  transform: translateX(-50%) !important;
+
+  width: min(620px, calc(100vw - 40px));
+  max-height: 180px;
+
+  padding: 18px 22px;
+
+  background: rgba(39, 29, 61, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+
+  box-shadow:
+    0 18px 50px rgba(20, 10, 40, 0.35),
+    0 4px 15px rgba(20, 10, 40, 0.2);
+
+  z-index: 9999;
+
+  overflow: hidden;
+}
+
+/* Nama karakter */
+.dialogName {
+  font-size: 13px;
+  font-weight: 800;
+  margin-bottom: 7px;
+}
+
+/* Isi percakapan */
+.dialogText {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* Petunjuk */
+.dialogHint {
+  margin-top: 10px;
+  font-size: 10px;
+  opacity: 0.55;
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .dialog {
+    width: calc(100vw - 24px);
+    bottom: 18px !important;
+    padding: 15px 17px;
+    border-radius: 17px;
+  }
+
+  .dialogText {
+    font-size: 12px;
+  }
+}
