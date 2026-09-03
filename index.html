@@ -1,0 +1,1646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+
+<title>CELESTIA ✦ A Cozy Fantasy World</title>
+
+<link rel="stylesheet" href="style.css">
+
+</head>
+
+
+<body>
+
+<div id="game">
+
+<canvas id="world"></canvas>
+
+<!-- TOP -->
+<div class="topbar">
+
+  <div class="logo">
+    <div class="star">✦</div>
+    <div>
+      <h1>CELESTIA</h1>
+      <span>A COZY FANTASY WORLD</span>
+    </div>
+  </div>
+
+  <div class="status">
+    <div class="pill">☀️ Day 1 · 10:24 AM</div>
+    <div class="pill">☁️ Cloudhaven</div>
+    
+  <div class="playerBadge">
+    <span class="crown">👑</span>
+    <div>
+      <b>Eunseorin</b>
+      <small>Kanja · Creator</small>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- OUTFIT -->
+<div class="outfit" id="outfitPanel">
+
+  <div class="outfitHead">
+    <h2>✦ MY OUTFITS</h2>
+    <button class="closeOutfit" onclick="toggleOutfit()">×</button>
+  </div>
+
+  <div class="characterPreview">
+    <div class="previewCharacter" id="previewCharacter"></div>
+  </div>
+
+  <div class="sectionTitle">Hair</div>
+
+  <div class="options" id="hairOptions">
+    <button class="option active" data-value="brown">🤎</button>
+    <button class="option" data-value="black">🖤</button>
+    <button class="option" data-value="purple">💜</button>
+    <button class="option" data-value="pink">🩷</button>
+  </div>
+
+  <div class="sectionTitle">Outfit</div>
+
+  <div class="options" id="dressOptions">
+    <button class="option active" data-value="lavender">👗</button>
+    <button class="option" data-value="pink">🎀</button>
+    <button class="option" data-value="blue">🩵</button>
+    <button class="option" data-value="cream">🤍</button>
+  </div>
+
+  <div class="sectionTitle">Accessory</div>
+
+  <div class="options" id="accessoryOptions">
+    <button class="option active" data-value="flower">🌸</button>
+    <button class="option" data-value="bow">🎀</button>
+    <button class="option" data-value="crown">👑</button>
+    <button class="option" data-value="star">⭐</button>
+  </div>
+
+  <button class="saveOutfit" onclick="saveOutfit()">SAVE OUTFIT ✦</button>
+
+</div>
+
+<button class="openOutfit" onclick="toggleOutfit()">👗 Outfit</button>
+
+<!-- BOTTOM -->
+<div class="bottomLeft">
+
+  <div class="interact" id="interactBox">
+    Press <b>E</b> to interact
+  </div>
+
+  <div class="controls">
+    <b>WASD / ARROW</b> Move &nbsp; · &nbsp;
+    <b>E</b> Interact &nbsp; · &nbsp;
+    <b>O</b> Outfit
+  </div>
+
+</div>
+
+<!-- MINIMAP -->
+<div class="minimap">
+  <canvas id="mini"></canvas>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- DIALOG -->
+<div class="dialog" id="dialog">
+  <div class="dialogName" id="dialogName">Cloudhaven</div>
+  <div class="dialogText" id="dialogText"></div>
+  <div class="dialogHint">Press E to close</div>
+</div>
+
+</div>
+
+<script>
+
+/* =====================================================
+   CELESTIA
+   MAP 01 — CLOUDHAVEN
+===================================================== */
+
+const canvas = document.getElementById("world");
+const ctx = canvas.getContext("2d");
+
+const mini = document.getElementById("mini");
+const mctx = mini.getContext("2d");
+
+let W,H;
+
+function resize(){
+  W = canvas.width = innerWidth;
+  H = canvas.height = innerHeight;
+  mini.width = 164;
+  mini.height = 109;
+}
+
+resize();
+addEventListener("resize",resize);
+
+
+/* ================= WORLD ================= */
+
+const WORLD = {
+  width:3600,
+  height:2400
+};
+
+const player = {
+  x:1800,
+  y:1420,
+  speed:3.1,
+  size:24,
+  direction:"down"
+};
+
+let camera = {
+  x:0,
+  y:0
+};
+
+let keys = {};
+
+addEventListener("keydown",e=>{
+
+  keys[e.key.toLowerCase()] = true;
+
+  if(e.key.toLowerCase()==="o"){
+    toggleOutfit();
+  }
+
+  if(e.key.toLowerCase()==="e"){
+    interact();
+  }
+
+});
+
+addEventListener("keyup",e=>{
+  keys[e.key.toLowerCase()] = false;
+});
+
+
+/* ================= RANDOM HELPERS ================= */
+
+function rand(min,max){
+  return Math.random()*(max-min)+min;
+}
+
+function clamp(v,min,max){
+  return Math.max(min,Math.min(max,v));
+}
+
+
+/* ================= DECORATIONS ================= */
+
+const trees=[];
+const flowers=[];
+const clouds=[];
+const houses=[];
+const npcs=[];
+
+for(let i=0;i<120;i++){
+
+  trees.push({
+    x:rand(150,3450),
+    y:rand(180,2250),
+    size:rand(28,52)
+  });
+
+}
+
+for(let i=0;i<180;i++){
+
+  flowers.push({
+    x:rand(120,3480),
+    y:rand(180,2250),
+    type:Math.floor(rand(0,4))
+  });
+
+}
+
+for(let i=0;i<35;i++){
+
+  clouds.push({
+    x:rand(0,WORLD.width),
+    y:rand(0,800),
+    size:rand(80,220),
+    speed:rand(.05,.18)
+  });
+
+}
+
+
+/* ================= LANDMARKS ================= */
+
+const landmarks=[
+
+  {
+    x:1800,
+    y:370,
+    w:600,
+    h:430,
+    name:"Celestia Castle",
+    type:"castle"
+  },
+
+  {
+    x:700,
+    y:750,
+    w:750,
+    h:800,
+    name:"Whispering Forest",
+    type:"forest"
+  },
+
+  {
+    x:1850,
+    y:1080,
+    w:500,
+    h:400,
+    name:"Central Plaza",
+    type:"plaza"
+  },
+
+  {
+    x:2700,
+    y:900,
+    w:720,
+    h:700,
+    name:"Cloudhaven Village",
+    type:"village"
+  },
+
+  {
+    x:2860,
+    y:1750,
+    w:500,
+    h:400,
+    name:"Your Home",
+    type:"home"
+  },
+
+  {
+    x:2050,
+    y:1900,
+    w:650,
+    h:300,
+    name:"Pet Garden",
+    type:"pet"
+  },
+
+  {
+    x:750,
+    y:1880,
+    w:600,
+    h:350,
+    name:"Sky Dock",
+    type:"dock"
+  },
+
+  {
+    x:1750,
+    y:2210,
+    w:500,
+    h:180,
+    name:"Starfall Bridge",
+    type:"bridge"
+  }
+
+];
+
+
+/* ================= HOUSES ================= */
+
+houses.push(
+  {x:2780,y:980,color:"#8e72b9"},
+  {x:3060,y:1050,color:"#d184a9"},
+  {x:3300,y:950,color:"#6d91bb"},
+  {x:2860,y:1760,color:"#7865a9"}
+);
+
+
+/* ================= PLAYERS ================= */
+
+npcs.push(
+  {
+    x:1600,
+    y:1250,
+    name:"Luna",
+    icon:"⭐",
+    color:"#d6a5eb"
+  },
+  {
+    x:2050,
+    y:1310,
+    name:"Alya",
+    icon:"⭐",
+    color:"#f0b0d1"
+  },
+  {
+    x:2200,
+    y:1480,
+    name:"Mika",
+    icon:"⭐",
+    color:"#9dc4e9"
+  }
+);
+
+
+/* ================= COLLISION ================= */
+
+function blocked(x,y){
+
+  if(x<90 || y<120 || x>WORLD.width-90 || y>WORLD.height-90)
+    return true;
+
+  return false;
+}
+
+
+/* ================= MOVEMENT ================= */
+
+function update(){
+
+  let dx=0;
+  let dy=0;
+
+  if(keys["w"] || keys["arrowup"]){
+    dy=-1;
+    player.direction="up";
+  }
+
+  if(keys["s"] || keys["arrowdown"]){
+    dy=1;
+    player.direction="down";
+  }
+
+  if(keys["a"] || keys["arrowleft"]){
+    dx=-1;
+    player.direction="left";
+  }
+
+  if(keys["d"] || keys["arrowright"]){
+    dx=1;
+    player.direction="right";
+  }
+
+  if(dx || dy){
+
+    const length=Math.hypot(dx,dy);
+
+    dx/=length;
+    dy/=length;
+
+    const nx=player.x+dx*player.speed;
+    const ny=player.y+dy*player.speed;
+
+    if(!blocked(nx,player.y)) player.x=nx;
+    if(!blocked(player.x,ny)) player.y=ny;
+
+  }
+
+  camera.x=player.x-W/2;
+  camera.y=player.y-H/2;
+
+  camera.x=clamp(camera.x,0,WORLD.width-W);
+  camera.y=clamp(camera.y,0,WORLD.height-H);
+
+}
+
+
+/* ================= DRAW HELPERS ================= */
+
+function screenX(x){
+  return x-camera.x;
+}
+
+function screenY(y){
+  return y-camera.y;
+}
+
+
+/* ================= BACKGROUND ================= */
+
+function drawBackground(){
+
+  const grad=ctx.createLinearGradient(0,0,0,H);
+
+  grad.addColorStop(0,"#78a9c7");
+  grad.addColorStop(.55,"#a9cde0");
+  grad.addColorStop(1,"#d9c4e6");
+
+  ctx.fillStyle=grad;
+  ctx.fillRect(0,0,W,H);
+
+}
+
+
+/* ================= CLOUDS ================= */
+
+function drawClouds(){
+
+  ctx.fillStyle="rgba(255,244,248,.78)";
+
+  for(const c of clouds){
+
+    const x=screenX(c.x);
+    const y=screenY(c.y);
+
+    if(x<-300 || x>W+300) continue;
+
+    ctx.beginPath();
+
+    ctx.arc(x,y,c.size*.35,0,Math.PI*2);
+    ctx.arc(x+c.size*.28,y-20,c.size*.3,0,Math.PI*2);
+    ctx.arc(x+c.size*.55,y,c.size*.4,0,Math.PI*2);
+
+    ctx.fill();
+
+  }
+
+}
+
+
+/* ================= ISLAND ================= */
+
+function drawIsland(){
+
+  const x=screenX(1800);
+  const y=screenY(1200);
+
+  ctx.save();
+
+  ctx.fillStyle="#5c456d";
+
+  ctx.beginPath();
+
+  ctx.moveTo(x-1700,y-1050);
+  ctx.lineTo(x+1650,y-1050);
+  ctx.lineTo(x+1750,y+850);
+  ctx.lineTo(x+1300,y+1080);
+  ctx.lineTo(x-1200,y+1090);
+  ctx.lineTo(x-1750,y+850);
+  ctx.closePath();
+
+  ctx.fill();
+
+  /* grass */
+
+  ctx.fillStyle="#78a66e";
+
+  ctx.beginPath();
+
+  ctx.roundRect(
+    x-1720,
+    y-1080,
+    3440,
+    1920,
+    80
+  );
+
+  ctx.fill();
+
+  /* grass patches */
+
+  ctx.fillStyle="#92bc79";
+
+  for(let i=0;i<35;i++){
+
+    const px=x-1650+Math.random()*3300;
+    const py=y-980+Math.random()*1700;
+
+    ctx.fillRect(px,py,rand(40,100),rand(12,25));
+
+  }
+
+  ctx.restore();
+
+}
+
+
+/* ================= PATHS ================= */
+
+function drawPaths(){
+
+  ctx.fillStyle="#d9c6a8";
+
+  /* castle path */
+
+  ctx.fillRect(
+    screenX(1750),
+    screenY(700),
+    100,
+    850
+  );
+
+  /* village path */
+
+  ctx.fillRect(
+    screenX(1850),
+    screenY(1200),
+    1150,
+    90
+  );
+
+  /* bridge path */
+
+  ctx.fillRect(
+    screenX(1500),
+    screenY(2100),
+    800,
+    80
+  );
+
+  /* plaza */
+
+  ctx.beginPath();
+
+  ctx.arc(
+    screenX(1950),
+    screenY(1300),
+    230,
+    0,
+    Math.PI*2
+  );
+
+  ctx.fill();
+
+}
+
+
+/* ================= TREES ================= */
+
+function drawTrees(){
+
+  for(const t of trees){
+
+    const x=screenX(t.x);
+    const y=screenY(t.y);
+
+    if(x<-100 || y<-100 || x>W+100 || y>H+100) continue;
+
+    ctx.fillStyle="#604432";
+    ctx.fillRect(
+      x-t.size*.11,
+      y,
+      t.size*.22,
+      t.size*.65
+    );
+
+    ctx.fillStyle="#386c56";
+
+    ctx.beginPath();
+    ctx.arc(x,y,t.size*.48,0,Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle="#5e8d62";
+
+    ctx.beginPath();
+    ctx.arc(
+      x-t.size*.25,
+      y-t.size*.1,
+      t.size*.27,
+      0,
+      Math.PI*2
+    );
+
+    ctx.fill();
+
+  }
+
+}
+
+
+/* ================= FLOWERS ================= */
+
+function drawFlowers(){
+
+  const colors=[
+    "#f7b4cf",
+    "#cdb3ef",
+    "#f5dc91",
+    "#a9d6d2"
+  ];
+
+  flowers.forEach(f=>{
+
+    const x=screenX(f.x);
+    const y=screenY(f.y);
+
+    if(x<0||y<0||x>W||y>H)return;
+
+    ctx.fillStyle=colors[f.type];
+
+    ctx.fillRect(x,y,4,4);
+    ctx.fillRect(x-4,y+3,4,4);
+    ctx.fillRect(x+4,y+3,4,4);
+    ctx.fillRect(x,y+7,4,4);
+
+    ctx.fillStyle="#f7e49a";
+    ctx.fillRect(x,y+3,4,4);
+
+  });
+
+}
+
+
+/* ================= CASTLE ================= */
+
+function drawCastle(){
+
+  const x=screenX(1800);
+  const y=screenY(420);
+
+  ctx.save();
+
+  /* castle body */
+
+  ctx.fillStyle="#eee0db";
+
+  ctx.fillRect(x-230,y+80,460,270);
+
+  /* towers */
+
+  const towers=[
+    -210,-95,95,210
+  ];
+
+  towers.forEach(tx=>{
+
+    ctx.fillStyle="#e7d7d9";
+    ctx.fillRect(x+tx-40,y+5,80,300);
+
+    ctx.fillStyle="#65507e";
+
+    ctx.beginPath();
+    ctx.moveTo(x+tx-55,y+10);
+    ctx.lineTo(x+tx,y-75);
+    ctx.lineTo(x+tx+55,y+10);
+    ctx.closePath();
+    ctx.fill();
+
+  });
+
+  /* roof */
+
+  ctx.fillStyle="#66517f";
+
+  ctx.beginPath();
+
+  ctx.moveTo(x-255,y+90);
+  ctx.lineTo(x,y-10);
+  ctx.lineTo(x+255,y+90);
+
+  ctx.closePath();
+
+  ctx.fill();
+
+  /* door */
+
+  ctx.fillStyle="#51364e";
+
+  ctx.beginPath();
+  ctx.roundRect(x-35,y+240,70,110,35);
+  ctx.fill();
+
+  /* windows */
+
+  ctx.fillStyle="#ffe9a8";
+
+  for(let i=-2;i<=2;i++){
+
+    ctx.fillRect(
+      x+i*75-12,
+      y+125,
+      24,
+      40
+    );
+
+  }
+
+  ctx.restore();
+
+}
+
+
+/* ================= HOUSES ================= */
+
+function drawHouses(){
+
+  houses.forEach(h=>{
+
+    const x=screenX(h.x);
+    const y=screenY(h.y);
+
+    ctx.fillStyle="#eadacb";
+
+    ctx.fillRect(x-90,y-50,180,125);
+
+    ctx.fillStyle=h.color;
+
+    ctx.beginPath();
+
+    ctx.moveTo(x-110,y-50);
+    ctx.lineTo(x,y-135);
+    ctx.lineTo(x+110,y-50);
+    ctx.closePath();
+
+    ctx.fill();
+
+    ctx.fillStyle="#614355";
+
+    ctx.fillRect(x-22,y+10,44,65);
+
+    ctx.fillStyle="#f7dba0";
+
+    ctx.fillRect(x-65,y-5,30,30);
+    ctx.fillRect(x+35,y-5,30,30);
+
+  });
+
+}
+
+
+/* ================= PLAZA ================= */
+
+function drawPlaza(){
+
+  const x=screenX(1950);
+  const y=screenY(1300);
+
+  ctx.fillStyle="#8aa2bd";
+
+  ctx.beginPath();
+  ctx.arc(x,y,105,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#6f91b2";
+
+  ctx.beginPath();
+  ctx.arc(x,y,85,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#d9f1f0";
+
+  ctx.beginPath();
+  ctx.arc(x,y-20,45,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#fff0c8";
+
+  ctx.beginPath();
+  ctx.arc(x,y-60,16,0,Math.PI*2);
+  ctx.fill();
+
+}
+
+
+/* ================= BRIDGE ================= */
+
+function drawBridge(){
+
+  const x=screenX(1750);
+  const y=screenY(2170);
+
+  ctx.fillStyle="#755b72";
+
+  ctx.fillRect(x-350,y-30,700,60);
+
+  ctx.strokeStyle="#e2b6a0";
+  ctx.lineWidth=9;
+
+  ctx.beginPath();
+  ctx.arc(x,y+25,300,Math.PI,0);
+  ctx.stroke();
+
+}
+
+
+/* ================= WATERFALLS ================= */
+
+function drawWaterfalls(){
+
+  const falls=[
+    [450,1450],
+    [2450,650],
+    [3350,1500],
+    [1200,2100]
+  ];
+
+  falls.forEach(f=>{
+
+    const x=screenX(f[0]);
+    const y=screenY(f[1]);
+
+    ctx.fillStyle="#8bd2e4";
+    ctx.fillRect(x,y,32,230);
+
+    ctx.fillStyle="rgba(225,250,255,.8)";
+    ctx.fillRect(x+7,y,6,230);
+    ctx.fillRect(x+20,y,5,210);
+
+  });
+
+}
+
+
+/* ================= PET ================= */
+
+function drawPet(){
+
+  const x=screenX(2360);
+  const y=screenY(1900);
+
+  ctx.fillStyle="#fff5ed";
+
+  ctx.beginPath();
+  ctx.arc(x,y,26,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.beginPath();
+
+  ctx.moveTo(x-18,y-15);
+  ctx.lineTo(x-27,y-52);
+  ctx.lineTo(x-3,y-30);
+  ctx.closePath();
+
+  ctx.fill();
+
+  ctx.beginPath();
+
+  ctx.moveTo(x+18,y-15);
+  ctx.lineTo(x+27,y-52);
+  ctx.lineTo(x+3,y-30);
+  ctx.closePath();
+
+  ctx.fill();
+
+  ctx.fillStyle="#513d50";
+
+  ctx.fillRect(x-10,y-2,5,5);
+  ctx.fillRect(x+6,y-2,5,5);
+
+}
+
+
+/* ================= CHARACTER ================= */
+
+let outfit={
+  hair:"brown",
+  dress:"lavender",
+  accessory:"flower"
+};
+
+function drawCharacter(x,y,isCreator=true){
+
+  ctx.save();
+
+  /* shadow */
+
+  ctx.fillStyle="rgba(50,30,60,.25)";
+
+  ctx.beginPath();
+  ctx.ellipse(x,y+31,25,9,0,0,Math.PI*2);
+  ctx.fill();
+
+  /* body */
+
+  let dressColor="#bda7df";
+
+  if(outfit.dress==="pink") dressColor="#e7a7c5";
+  if(outfit.dress==="blue") dressColor="#9fc8df";
+  if(outfit.dress==="cream") dressColor="#eee0c8";
+
+  ctx.fillStyle=dressColor;
+
+  ctx.beginPath();
+
+  ctx.moveTo(x-21,y+5);
+  ctx.lineTo(x-30,y+39);
+  ctx.lineTo(x+30,y+39);
+  ctx.lineTo(x+21,y+5);
+  ctx.closePath();
+
+  ctx.fill();
+
+  /* legs */
+
+  ctx.fillStyle="#ead6d4";
+
+  ctx.fillRect(x-12,y+37,8,13);
+  ctx.fillRect(x+4,y+37,8,13);
+
+  /* hair */
+
+  let hairColor="#5c3b36";
+
+  if(outfit.hair==="black")hairColor="#282436";
+  if(outfit.hair==="purple")hairColor="#76547f";
+  if(outfit.hair==="pink")hairColor="#a9627c";
+
+  ctx.fillStyle=hairColor;
+
+  ctx.beginPath();
+
+  ctx.arc(x,y-8,28,0,Math.PI*2);
+
+  ctx.fill();
+
+  /* face */
+
+  ctx.fillStyle="#ffe1d0";
+
+  ctx.beginPath();
+
+  ctx.arc(x,y-5,19,0,Math.PI*2);
+
+  ctx.fill();
+
+  /* eyes */
+
+  ctx.fillStyle="#49313c";
+
+  ctx.fillRect(x-8,y-8,5,7);
+  ctx.fillRect(x+4,y-8,5,7);
+
+  /* blush */
+
+  ctx.fillStyle="#ed9cae";
+  ctx.fillRect(x-15,y+2,5,3);
+  ctx.fillRect(x+10,y+2,5,3);
+
+  /* hair bangs */
+
+  ctx.fillStyle=hairColor;
+
+  ctx.beginPath();
+
+  ctx.moveTo(x-25,y-15);
+  ctx.quadraticCurveTo(x,y-37,x+24,y-14);
+  ctx.lineTo(x+17,y-5);
+  ctx.lineTo(x+8,y-17);
+  ctx.lineTo(x,y-6);
+  ctx.lineTo(x-8,y-17);
+  ctx.lineTo(x-17,y-6);
+  ctx.closePath();
+
+  ctx.fill();
+
+  /* accessory */
+
+  if(outfit.accessory==="flower"){
+
+    ctx.fillStyle="#f4b2cf";
+    ctx.fillRect(x+18,y-25,7,7);
+    ctx.fillStyle="#fff0a8";
+    ctx.fillRect(x+20,y-23,3,3);
+
+  }
+
+  if(outfit.accessory==="bow"){
+
+    ctx.fillStyle="#ee9fbd";
+    ctx.fillRect(x+16,y-25,9,8);
+    ctx.fillRect(x+25,y-25,9,8);
+
+  }
+
+  if(outfit.accessory==="crown"){
+
+    ctx.fillStyle="#ffd86b";
+
+    ctx.beginPath();
+
+    ctx.moveTo(x-13,y-31);
+    ctx.lineTo(x-8,y-44);
+    ctx.lineTo(x,y-35);
+    ctx.lineTo(x+8,y-44);
+    ctx.lineTo(x+13,y-31);
+    ctx.closePath();
+
+    ctx.fill();
+
+  }
+
+  if(outfit.accessory==="star"){
+
+    ctx.fillStyle="#fff0a5";
+    ctx.font="18px serif";
+    ctx.fillText("★",x+17,y-25);
+
+  }
+
+  ctx.restore();
+
+}
+
+
+/* ================= PLAYER MARKER ================= */
+
+function drawMarker(x,y,icon,name){
+
+  ctx.save();
+
+  ctx.font="18px serif";
+  ctx.textAlign="center";
+
+  ctx.fillText(icon,x,y-52);
+
+  ctx.font="11px DM Sans";
+  ctx.fillStyle="#fff";
+
+  ctx.fillText(name,x,y-67);
+
+  ctx.restore();
+
+}
+
+
+/* ================= NPCS ================= */
+
+function drawNPCs(){
+
+  npcs.forEach(n=>{
+
+    const x=screenX(n.x);
+    const y=screenY(n.y);
+
+    drawSimplePlayer(x,y,n.color);
+
+    drawMarker(x,y,n.icon,n.name);
+
+  });
+
+}
+
+function drawSimplePlayer(x,y,color){
+
+  ctx.fillStyle="rgba(50,30,60,.2)";
+  ctx.beginPath();
+  ctx.ellipse(x,y+29,22,7,0,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle=color;
+
+  ctx.beginPath();
+  ctx.arc(x,y-8,24,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#ffe0cf";
+
+  ctx.beginPath();
+  ctx.arc(x,y-6,15,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#48313a";
+  ctx.fillRect(x-6,y-8,4,6);
+  ctx.fillRect(x+4,y-8,4,6);
+
+  ctx.fillStyle=color;
+  ctx.fillRect(x-19,y+5,38,25);
+
+}
+
+
+/* ================= LABELS ================= */
+
+function label(text,x,y){
+
+  ctx.save();
+
+  ctx.font="700 12px DM Sans";
+
+  const width=ctx.measureText(text).width+25;
+
+  ctx.fillStyle="rgba(62,45,86,.86)";
+
+  ctx.beginPath();
+  ctx.roundRect(
+    x-width/2,
+    y-16,
+    width,
+    30,
+    10
+  );
+
+  ctx.fill();
+
+  ctx.fillStyle="#fff";
+  ctx.textAlign="center";
+  ctx.fillText(text,x,y+4);
+
+  ctx.restore();
+
+}
+
+function drawLabels(){
+
+  label(
+    "✦ CELESTIA CASTLE ✦",
+    screenX(1800),
+    screenY(810)
+  );
+
+  label(
+    "WHISPERING FOREST",
+    screenX(800),
+    screenY(720)
+  );
+
+  label(
+    "CENTRAL PLAZA",
+    screenX(1950),
+    screenY(1050)
+  );
+
+  label(
+    "CLOUDHAVEN VILLAGE",
+    screenX(3000),
+    screenY(820)
+  );
+
+  label(
+    "YOUR HOME",
+    screenX(2860),
+    screenY(1620)
+  );
+
+  label(
+    "PET GARDEN",
+    screenX(2350),
+    screenY(1770)
+  );
+
+}
+
+
+/* ================= INTERACTION ================= */
+
+function nearest(){
+
+  let nearest=null;
+  let distance=Infinity;
+
+  npcs.forEach(n=>{
+
+    const d=Math.hypot(
+      player.x-n.x,
+      player.y-n.y
+    );
+
+    if(d<120 && d<distance){
+
+      distance=d;
+      nearest=n;
+
+    }
+
+  });
+
+  return nearest;
+}
+
+function interact(){
+
+  const npc=nearest();
+
+  if(document.getElementById("dialog").classList.contains("show")){
+
+    document.getElementById("dialog").classList.remove("show");
+    return;
+
+  }
+
+  if(npc){
+
+    openDialog(
+      npc.name,
+      "Hii! ✨ Welcome to Cloudhaven! Aku baru saja menemukan tempat cantik di dekat castle. Mau jalan bareng?"
+    );
+
+    return;
+
+  }
+
+  const dx=player.x-2860;
+  const dy=player.y-1760;
+
+  if(Math.hypot(dx,dy)<150){
+
+    openDialog(
+      "Your Home",
+      "Rumahmu masih kecil, tapi suatu hari nanti kamu bisa menghiasnya sesuka hati. 🏡💗"
+    );
+
+    return;
+
+  }
+
+  if(Math.hypot(
+    player.x-2360,
+    player.y-1900
+  )<130){
+
+    openDialog(
+      "Pet Garden",
+      "A tiny bunny is looking at you... 🐰✨"
+    );
+
+    return;
+
+  }
+
+  openDialog(
+    "Cloudhaven",
+    "The breeze feels soft today. Somewhere beyond the clouds, another island is waiting..."
+  );
+
+}
+
+function openDialog(name,text){
+
+  document.getElementById("dialogName").textContent=name;
+  document.getElementById("dialogText").textContent=text;
+
+  document.getElementById("dialog").classList.add("show");
+
+}
+
+
+/* ================= INTERACTION UI ================= */
+
+function updateInteraction(){
+
+  const npc=nearest();
+  const box=document.getElementById("interactBox");
+
+  if(npc){
+
+    box.classList.add("show");
+    box.innerHTML=`Press <b>E</b> to talk to ${npc.name}`;
+
+  }else{
+
+    box.classList.remove("show");
+
+  }
+
+}
+
+
+/* ================= OUTFIT ================= */
+
+function toggleOutfit(){
+
+  document
+    .getElementById("outfitPanel")
+    .classList.toggle("closed");
+
+}
+
+function setupOptions(id,key){
+
+  document
+    .querySelectorAll(`#${id} .option`)
+    .forEach(btn=>{
+
+      btn.addEventListener("click",()=>{
+
+        document
+          .querySelectorAll(`#${id} .option`)
+          .forEach(x=>x.classList.remove("active"));
+
+        btn.classList.add("active");
+
+        outfit[key]=btn.dataset.value;
+
+        updatePreview();
+
+      });
+
+    });
+
+}
+
+setupOptions("hairOptions","hair");
+setupOptions("dressOptions","dress");
+setupOptions("accessoryOptions","accessory");
+
+
+function updatePreview(){
+
+  const p=document.getElementById("previewCharacter");
+
+  p.innerHTML="";
+
+  const oldCtx=ctx;
+
+  /*
+    Preview menggunakan mini canvas
+  */
+
+  const c=document.createElement("canvas");
+  c.width=100;
+  c.height=130;
+
+  c.style.width="100px";
+  c.style.height="130px";
+
+  const pc=c.getContext("2d");
+
+  pc.imageSmoothingEnabled=false;
+
+  /* shadow */
+
+  pc.fillStyle="rgba(50,30,60,.18)";
+  pc.beginPath();
+  pc.ellipse(50,110,25,7,0,0,Math.PI*2);
+  pc.fill();
+
+  let dc="#bda7df";
+
+  if(outfit.dress==="pink")dc="#e7a7c5";
+  if(outfit.dress==="blue")dc="#9fc8df";
+  if(outfit.dress==="cream")dc="#eee0c8";
+
+  pc.fillStyle=dc;
+
+  pc.beginPath();
+  pc.moveTo(30,55);
+  pc.lineTo(20,105);
+  pc.lineTo(80,105);
+  pc.lineTo(70,55);
+  pc.closePath();
+  pc.fill();
+
+  pc.fillStyle="#ead6d4";
+  pc.fillRect(39,103,8,15);
+  pc.fillRect(54,103,8,15);
+
+  let hc="#5c3b36";
+
+  if(outfit.hair==="black")hc="#282436";
+  if(outfit.hair==="purple")hc="#76547f";
+  if(outfit.hair==="pink")hc="#a9627c";
+
+  pc.fillStyle=hc;
+  pc.beginPath();
+  pc.arc(50,47,29,0,Math.PI*2);
+  pc.fill();
+
+  pc.fillStyle="#ffe1d0";
+  pc.beginPath();
+  pc.arc(50,49,20,0,Math.PI*2);
+  pc.fill();
+
+  pc.fillStyle="#49313c";
+  pc.fillRect(41,45,5,7);
+  pc.fillRect(55,45,5,7);
+
+  pc.fillStyle=hc;
+  pc.beginPath();
+  pc.moveTo(26,40);
+  pc.quadraticCurveTo(50,13,74,40);
+  pc.lineTo(66,50);
+  pc.lineTo(58,35);
+  pc.lineTo(50,47);
+  pc.lineTo(42,35);
+  pc.lineTo(34,50);
+  pc.closePath();
+  pc.fill();
+
+  if(outfit.accessory==="flower"){
+
+    pc.fillStyle="#f4b2cf";
+    pc.fillRect(69,28,8,8);
+
+  }
+
+  if(outfit.accessory==="bow"){
+
+    pc.fillStyle="#ee9fbd";
+    pc.fillRect(66,27,10,8);
+    pc.fillRect(75,27,10,8);
+
+  }
+
+  if(outfit.accessory==="crown"){
+
+    pc.fillStyle="#ffd86b";
+
+    pc.beginPath();
+    pc.moveTo(37,25);
+    pc.lineTo(42,12);
+    pc.lineTo(50,22);
+    pc.lineTo(58,12);
+    pc.lineTo(63,25);
+    pc.closePath();
+    pc.fill();
+
+  }
+
+  if(outfit.accessory==="star"){
+
+    pc.fillStyle="#fff0a5";
+    pc.font="20px serif";
+    pc.fillText("★",68,28);
+
+  }
+
+  p.appendChild(c);
+
+}
+
+
+/* ================= TOAST ================= */
+
+function toast(text){
+
+  const t=document.getElementById("toast");
+
+  t.textContent=text;
+  t.classList.add("show");
+
+  clearTimeout(window.toastTimer);
+
+  window.toastTimer=setTimeout(()=>{
+    t.classList.remove("show");
+  },2200);
+
+}
+
+function saveOutfit(){
+
+  localStorage.setItem(
+    "celestiaOutfit",
+    JSON.stringify(outfit)
+  );
+
+  toast("✨ Outfit kamu sudah disimpan!");
+
+}
+
+const savedOutfit=localStorage.getItem("celestiaOutfit");
+
+if(savedOutfit){
+
+  try{
+    outfit=JSON.parse(savedOutfit);
+  }catch{}
+
+}
+
+updatePreview();
+
+
+/* ================= MINIMAP ================= */
+
+function drawMini(){
+
+  mctx.clearRect(0,0,164,109);
+
+  mctx.fillStyle="#78a66e";
+  mctx.fillRect(0,0,164,109);
+
+  mctx.fillStyle="#d8c5a9";
+  mctx.fillRect(75,20,10,65);
+  mctx.fillRect(20,52,130,6);
+
+  /* castle */
+
+  mctx.fillStyle="#77618d";
+  mctx.fillRect(72,8,20,17);
+
+  /* village */
+
+  mctx.fillStyle="#d28ca8";
+
+  mctx.fillRect(120,42,12,10);
+  mctx.fillRect(135,48,12,10);
+
+  /* forest */
+
+  mctx.fillStyle="#416b55";
+
+  mctx.fillRect(15,15,45,30);
+
+  /* home */
+
+  mctx.fillStyle="#7664a9";
+  mctx.fillRect(125,70,16,12);
+
+  /* player */
+
+  mctx.fillStyle="#ffd76c";
+
+  const px=player.x/WORLD.width*164;
+  const py=player.y/WORLD.height*109;
+
+  mctx.beginPath();
+  mctx.arc(px,py,4,0,Math.PI*2);
+  mctx.fill();
+
+}
+
+
+/* ================= MAIN RENDER ================= */
+
+function render(){
+
+  update();
+
+  drawBackground();
+
+  drawClouds();
+
+  drawIsland();
+
+  drawPaths();
+
+  drawWaterfalls();
+
+  drawTrees();
+
+  drawFlowers();
+
+  drawCastle();
+
+  drawHouses();
+
+  drawPlaza();
+
+  drawBridge();
+
+  drawPet();
+
+  drawNPCs();
+
+  drawLabels();
+
+  /* creator */
+
+  drawCharacter(
+    screenX(player.x),
+    screenY(player.y),
+    true
+  );
+
+  drawMarker(
+    screenX(player.x),
+    screenY(player.y),
+    "👑",
+    "Eunseorin"
+  );
+
+  updateInteraction();
+
+  drawMini();
+
+  requestAnimationFrame(render);
+
+}
+
+render();
+
+
+/* ================= WELCOME ================= */
+
+setTimeout(()=>{
+
+  toast("☁️ Welcome to Cloudhaven, Creator ✦");
+
+},700);
+
+
+/* ================= DAY / NIGHT ================= */
+
+let night=false;
+
+setInterval(()=>{
+
+  night=!night;
+
+  if(night){
+
+    document.body.style.background="#101027";
+
+  }else{
+
+    document.body.style.background="#17162b";
+
+  }
+
+},45000);
+
+</script>
+
+</body>
+</html>
