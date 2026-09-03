@@ -1,33 +1,52 @@
-// ======================================================
-// CELESTIA PIXEL CHARACTER V4
-// ======================================================
+/* =========================================
+   EUNSEORIN PIXEL CHARACTER
+   ========================================= */
 
-function drawPlayer(x, y, direction, frame, time) {
+const eunseorinSprite = new Image();
+
+/*
+  Path mengikuti folder GitHub kamu:
+  assets/ characters/eunseorin.png
+*/
+eunseorinSprite.src =
+  "./assets/%20characters/eunseorin.png";
+
+let eunseorinLoaded = false;
+
+eunseorinSprite.onload = () => {
+  eunseorinLoaded = true;
+  console.log("✨ Eunseorin pixel character loaded!");
+};
+
+
+/* =========================================
+   DRAW EUNSEORIN
+   ========================================= */
+
+function drawEunseorin(ctx, x, y) {
+
+  if (!eunseorinLoaded) return;
+
+  const characterWidth = 72;
+  const characterHeight = 96;
 
   ctx.save();
 
-  ctx.translate(x, y);
+  // Pixel art tetap tajam
+  ctx.imageSmoothingEnabled = false;
 
-  /*
-    Pixel movement
-    0 = idle
-    1-3 = walking frames
-  */
+  ctx.drawImage(
+    eunseorinSprite,
 
-  const walking = player.moving;
+    x - characterWidth / 2,
+    y - characterHeight,
 
-  const step = walking
-    ? Math.sin(frame * Math.PI) * 4
-    : 0;
+    characterWidth,
+    characterHeight
+  );
 
-  const bob = walking
-    ? Math.abs(Math.sin(frame * Math.PI)) * 2
-    : Math.sin(time * 0.003) * 1.2;
-
-
-  ctx.translate(0, bob);
-
-
+  ctx.restore();
+}
   // ====================================================
   // SHADOW
   // ====================================================
