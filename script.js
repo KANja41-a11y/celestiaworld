@@ -4097,5 +4097,5 @@ console.log(
 
 console.log(
   "👧🏻 Eunseorin:",
-  "./assets/%20characters/eunseorin.png"
+  eunseorinSprite.src = "./assets/characters/eunseorin.png";
 );
