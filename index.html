@@ -1,131 +1,474 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>CELESTIA ✦ A Cozy Fantasy World</title>
+  <title>CELESTIA ✦ A Cozy Fantasy World</title>
 
-<link rel="stylesheet" href="style.css">
-
+  <link rel="stylesheet" href="style.css">
 </head>
-
 
 <body>
 
-<div id="game">
+<div class="game">
 
-<canvas id="world"></canvas>
+  <!-- ================= WORLD ================= -->
+  <canvas id="world"></canvas>
 
-<!-- TOP -->
-<div class="topbar">
 
-  <div class="logo">
-    <div class="star">✦</div>
-    <div>
-      <h1>CELESTIA</h1>
-      <span>A COZY FANTASY WORLD</span>
+  <!-- ================= TOP BAR ================= -->
+  <header class="topbar">
+
+    <div class="logo">
+      <span>☾</span>
+
+      <div>
+        <b>CELESTIA</b>
+        <small>A COZY FANTASY WORLD</small>
+      </div>
     </div>
-  </div>
 
-  <div class="status">
-    <div class="pill">☀️ Day 1 · 10:24 AM</div>
-    <div class="pill">☁️ Cloudhaven</div>
-    
-  <div class="playerBadge">
-    <span class="crown">👑</span>
+
+    <div class="status">
+
+      <div class="pill">
+        ☀️
+        <span id="timeText">Day 1 · 10:24 AM</span>
+      </div>
+
+      <div class="pill">
+        ☁️
+        <span id="locationText">Cloudhaven</span>
+      </div>
+
+    </div>
+
+
+    <div class="playerBadge">
+
+      <span class="crown">👑</span>
+
+      <div>
+        <b id="playerName">Eunseorin</b>
+        <small>Kanja · Creator</small>
+      </div>
+
+    </div>
+
+  </header>
+
+
+
+  <!-- ================= PROFILE ================= -->
+
+  <section class="profileCard">
+
+    <div class="portrait">
+      🌸
+    </div>
+
     <div>
-      <b>Eunseorin</b>
+      <b id="profileName">Eunseorin</b>
       <small>Kanja · Creator</small>
     </div>
+
+    <div class="hearts">
+      ♥ ♥ ♥ ♥ ♡
+    </div>
+
+    <div class="level">
+
+      <span>
+        Lv. <b id="level">1</b>
+      </span>
+
+      <div class="xp">
+        <i id="xpBar"></i>
+      </div>
+
+      <small id="xpText">
+        0 / 100 XP
+      </small>
+
+    </div>
+
+  </section>
+
+
+
+  <!-- ================= SIDE MENU ================= -->
+
+  <aside class="sideMenu">
+
+    <button class="menuBtn active" data-panel="inventory">
+      🎒
+      <span>Inventory</span>
+      <kbd>I</kbd>
+    </button>
+
+    <button class="menuBtn" data-panel="map">
+      🗺️
+      <span>Map</span>
+      <kbd>M</kbd>
+    </button>
+
+    <button class="menuBtn" data-panel="quest">
+      📜
+      <span>Quest</span>
+      <kbd>Q</kbd>
+    </button>
+
+    <button class="menuBtn" data-panel="outfit">
+      👗
+      <span>Outfit</span>
+      <kbd>O</kbd>
+    </button>
+
+  </aside>
+
+
+
+  <!-- ================= OUTFIT ================= -->
+
+  <section
+    class="outfit closed"
+    id="outfitPanel"
+  >
+
+    <div class="outfitHead">
+
+      <div>
+        <b>OUTFIT ✦</b>
+        <small>Customize your character</small>
+      </div>
+
+      <button
+        class="closeOutfit"
+        onclick="toggleOutfit()"
+      >
+        ✕
+      </button>
+
+    </div>
+
+
+    <div class="characterPreview">
+
+      <canvas
+        id="previewCharacter"
+        width="180"
+        height="190"
+      ></canvas>
+
+    </div>
+
+
+    <div class="sectionTitle">
+      Hair
+    </div>
+
+    <div
+      class="options"
+      data-group="hair"
+    >
+
+      <button
+        class="option selected"
+        data-value="brown"
+      >
+        🤎
+      </button>
+
+      <button
+        class="option"
+        data-value="black"
+      >
+        🖤
+      </button>
+
+      <button
+        class="option"
+        data-value="purple"
+      >
+        💜
+      </button>
+
+      <button
+        class="option"
+        data-value="pink"
+      >
+        🩷
+      </button>
+
+    </div>
+
+
+
+    <div class="sectionTitle">
+      Dress
+    </div>
+
+    <div
+      class="options"
+      data-group="dress"
+    >
+
+      <button
+        class="option selected"
+        data-value="lavender"
+      >
+        💜
+      </button>
+
+      <button
+        class="option"
+        data-value="pink"
+      >
+        🩷
+      </button>
+
+      <button
+        class="option"
+        data-value="blue"
+      >
+        💙
+      </button>
+
+      <button
+        class="option"
+        data-value="cream"
+      >
+        🤍
+      </button>
+
+    </div>
+
+
+
+    <div class="sectionTitle">
+      Accessory
+    </div>
+
+    <div
+      class="options"
+      data-group="accessory"
+    >
+
+      <button
+        class="option selected"
+        data-value="flower"
+      >
+        🌸
+      </button>
+
+      <button
+        class="option"
+        data-value="bow"
+      >
+        🎀
+      </button>
+
+      <button
+        class="option"
+        data-value="crown"
+      >
+        👑
+      </button>
+
+      <button
+        class="option"
+        data-value="star"
+      >
+        ⭐
+      </button>
+
+    </div>
+
+
+
+    <button
+      class="saveOutfit"
+      onclick="saveOutfit()"
+    >
+      SAVE OUTFIT ✦
+    </button>
+
+  </section>
+
+
+
+  <button
+    class="openOutfit"
+    onclick="toggleOutfit()"
+  >
+    👗 Outfit
+  </button>
+
+
+
+  <!-- ================= INVENTORY ================= -->
+
+  <section
+    class="inventoryPanel panel hidden"
+    id="inventoryPanel"
+  >
+
+    <h3>
+      🎒 Inventory
+    </h3>
+
+    <div id="inventoryGrid"></div>
+
+  </section>
+
+
+
+  <!-- ================= MAP ================= -->
+
+  <section
+    class="mapPanel panel hidden"
+    id="mapPanel"
+  >
+
+    <h3>
+      🗺️ Cloudhaven
+    </h3>
+
+    <p>
+      🏰 Celestia Castle
+    </p>
+
+    <p>
+      🌲 Whispering Forest
+    </p>
+
+    <p>
+      🌸 Central Plaza
+    </p>
+
+    <p>
+      🏡 Your Home
+    </p>
+
+    <p>
+      🐇 Pet Garden
+    </p>
+
+    <p>
+      ☁️ Sky Dock
+    </p>
+
+  </section>
+
+
+
+  <!-- ================= QUEST ================= -->
+
+  <section
+    class="questPanel panel hidden"
+    id="questPanel"
+  >
+
+    <h3>
+      📜 Quest
+    </h3>
+
+    <p>
+      🌸 Collect 3 flowers
+    </p>
+
+    <p>
+      💬 Talk to Luna
+    </p>
+
+    <p>
+      🏰 Visit Celestia Castle
+    </p>
+
+  </section>
+
+
+
+  <!-- ================= CONTROLS ================= -->
+
+  <div class="bottomLeft">
+
+    <div
+      class="interact"
+      id="interactBox"
+    >
+      Press <b>E</b> to interact
+    </div>
+
+    <div class="controls">
+      <b>WASD</b> / <b>ARROWS</b>
+      Move ·
+      <b>E</b> Interact ·
+      <b>O</b> Outfit
+    </div>
+
+  </div>
+
+
+
+  <!-- ================= MINIMAP ================= -->
+
+  <div class="minimap">
+
+    <canvas
+      id="mini"
+      width="360"
+      height="240"
+    ></canvas>
+
+  </div>
+
+
+
+  <!-- ================= TOAST ================= -->
+
+  <div
+    class="toast"
+    id="toast"
+  ></div>
+
+
+
+  <!-- ================= DIALOG ================= -->
+
+  <div
+    class="dialog"
+    id="dialog"
+  >
+
+    <div
+      class="dialogAvatar"
+      id="dialogAvatar"
+    >
+      💬
+    </div>
+
+    <div>
+
+      <b id="dialogName">
+        Luna
+      </b>
+
+      <p id="dialogText"></p>
+
+      <small>
+        Press E or Enter to close
+      </small>
+
+    </div>
+
   </div>
 
 </div>
-</div>
 
-<!-- OUTFIT -->
 
-<div class="outfit" id="outfitPanel">
-
-<div class="outfitHead">
-
-<div>
-<b>OUTFIT ✦</b>
-<small>Customize your character</small>
-</div>
-
-<button class="closeOutfit" onclick="toggleOutfit()">✕</button>
-
-</div>
-
-  <div class="characterPreview">
-    <div class="previewCharacter" id="previewCharacter"></div>
-  </div>
-
-  <div class="sectionTitle">Hair</div>
-
-  <div class="options" id="hairOptions">
-    <button class="option active" data-value="brown">🤎</button>
-    <button class="option" data-value="black">🖤</button>
-    <button class="option" data-value="purple">💜</button>
-    <button class="option" data-value="pink">🩷</button>
-  </div>
-
-  <div class="sectionTitle">Outfit</div>
-
-  <div class="options" id="dressOptions">
-    <button class="option active" data-value="lavender">👗</button>
-    <button class="option" data-value="pink">🎀</button>
-    <button class="option" data-value="blue">🩵</button>
-    <button class="option" data-value="cream">🤍</button>
-  </div>
-
-  <div class="sectionTitle">Accessory</div>
-
-  <div class="options" id="accessoryOptions">
-    <button class="option active" data-value="flower">🌸</button>
-    <button class="option" data-value="bow">🎀</button>
-    <button class="option" data-value="crown">👑</button>
-    <button class="option" data-value="star">⭐</button>
-  </div>
-
-  <button class="saveOutfit" onclick="saveOutfit()">SAVE OUTFIT ✦</button>
-
-</div>
-
-<button class="openOutfit" onclick="toggleOutfit()">👗 Outfit</button>
-
-<!-- BOTTOM -->
-<div class="bottomLeft">
-
-  <div class="interact" id="interactBox">
-    Press <b>E</b> to interact
-  </div>
-
-  <div class="controls">
-    <b>WASD / ARROW</b> Move &nbsp; · &nbsp;
-    <b>E</b> Interact &nbsp; · &nbsp;
-    <b>O</b> Outfit
-  </div>
-
-</div>
-
-<!-- MINIMAP -->
-<div class="minimap">
-  <canvas id="mini"></canvas>
-</div>
-
-<!-- TOAST -->
-<div class="toast" id="toast"></div>
-
-<!-- DIALOG -->
-<div class="dialog" id="dialog">
-  <div class="dialogName" id="dialogName">Cloudhaven</div>
-  <div class="dialogText" id="dialogText"></div>
-  <div class="dialogHint">Press E to close</div>
-</div>
-
-</div>
+<!-- ================= IMPORTANT ================= -->
 
 <script src="script.js"></script>
 
