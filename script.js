@@ -1,410 +1,355 @@
 /* =========================================================
-   CELESTIA
-   A COZY FANTASY WORLD
-   MAP 01 — CLOUDHAVEN
-
-   FULL GAME SCRIPT
-   Movement + Camera + Interaction
-   NPC Dialogue + Outfit + Save System
-========================================================= */
-
-"use strict";
-
-
-/* =========================================================
-   DOM
-========================================================= */
+   CELESTIA ✦ A Cozy Fantasy World
+   GAME SCRIPT V2
+   ========================================================= */
 
 const canvas = document.getElementById("world");
 const ctx = canvas.getContext("2d");
 
 const mini = document.getElementById("mini");
-const mctx = mini.getContext("2d");
+const mctx = mini ? mini.getContext("2d") : null;
 
-const outfitPanel = document.getElementById("outfitPanel");
-const previewCharacter = document.getElementById("previewCharacter");
+let W = 0;
+let H = 0;
 
-const interactBox = document.getElementById("interactBox");
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
 
-const dialog = document.getElementById("dialog");
-const dialogName = document.getElementById("dialogName");
-const dialogText = document.getElementById("dialogText");
-
-const toast = document.getElementById("toast");
-
-const openOutfitButton = document.querySelector(".openOutfit");
-const closeOutfitButton = document.querySelector(".closeOutfit");
-const saveOutfitButton = document.querySelector(".saveOutfit");
-
-const hairOptions = document.getElementById("hairOptions");
-const dressOptions = document.getElementById("dressOptions");
-const accessoryOptions = document.getElementById("accessoryOptions");
-
-
-/* =========================================================
-   CANVAS SIZE
-========================================================= */
-
-let W = window.innerWidth;
-let H = window.innerHeight;
-
-function resizeCanvas(){
-
-    W = Math.max(320, window.innerWidth);
-    H = Math.max(240, window.innerHeight);
-
-    canvas.width = W;
-    canvas.height = H;
-
+  if (mini) {
     mini.width = 164;
     mini.height = 109;
-
-    updateCamera();
+  }
 }
 
-window.addEventListener("resize", resizeCanvas);
-
-resizeCanvas();
+resize();
+window.addEventListener("resize", resize);
 
 
 /* =========================================================
    WORLD
-========================================================= */
+   ========================================================= */
 
 const WORLD = {
-    width: 3600,
-    height: 2400
+  width: 3600,
+  height: 2400
 };
-
-
-/* =========================================================
-   GAME STATE
-========================================================= */
-
-const SAVE_KEY = "celestiaGameSave_v2";
-
-const DEFAULT_STATE = {
-
-    player: {
-        x: 1800,
-        y: 1420,
-        direction: "down"
-    },
-
-    outfit: {
-        hair: "brown",
-        dress: "lavender",
-        accessory: "flower"
-    },
-
-    day: 1,
-    time: 10.4,
-
-    isNight: false
-
-};
-
-
-/* =========================================================
-   GAME STATE LOAD
-========================================================= */
-
-let gameState = loadGame();
-
-
-function loadGame(){
-
-    try{
-
-        const saved = localStorage.getItem(SAVE_KEY);
-
-        if(!saved){
-            return structuredClone(DEFAULT_STATE);
-        }
-
-        const parsed = JSON.parse(saved);
-
-        return {
-
-            ...structuredClone(DEFAULT_STATE),
-
-            ...parsed,
-
-            player: {
-                ...DEFAULT_STATE.player,
-                ...(parsed.player || {})
-            },
-
-            outfit: {
-                ...DEFAULT_STATE.outfit,
-                ...(parsed.outfit || {})
-            }
-
-        };
-
-    }catch(error){
-
-        console.warn("CELESTIA save could not be loaded.", error);
-
-        return structuredClone(DEFAULT_STATE);
-    }
-
-}
-
-
-/* =========================================================
-   SAVE GAME
-========================================================= */
-
-function saveGame(){
-
-    try{
-
-        localStorage.setItem(
-            SAVE_KEY,
-            JSON.stringify(gameState)
-        );
-
-    }catch(error){
-
-        console.warn("CELESTIA save failed.", error);
-    }
-
-}
-
-
-/* =========================================================
-   PLAYER
-========================================================= */
 
 const player = {
+  x: 1800,
+  y: 1420,
+  speed: 190,
+  radius: 18,
+  direction: "down"
+};
 
-    x: gameState.player.x,
-    y: gameState.player.y,
-
-    speed: 210,
-
-    direction: gameState.player.direction || "down",
-
-    moving: false,
-
-    animationTime: 0,
-
-    walkFrame: 0
-
+let camera = {
+  x: 0,
+  y: 0
 };
 
 
 /* =========================================================
-   CAMERA
-========================================================= */
+   SAVE DATA
+   ========================================================= */
 
-const camera = {
+const SAVE_KEY = "celestiaSaveV2";
 
-    x: 0,
-    y: 0,
-
-    smoothing: 0.12
-
+const DEFAULT_SAVE = {
+  name: "Eunseorin",
+  nickname: "Kanja",
+  outfit: {
+    hair: "brown",
+    dress: "lavender",
+    accessory: "flower"
+  },
+  player: {
+    x: 1800,
+    y: 1420,
+    direction: "down"
+  }
 };
 
+let saveData = loadGame();
 
-function clamp(value, min, max){
+function loadGame() {
+  try {
+    const saved = localStorage.getItem(SAVE_KEY);
 
-    return Math.max(
-        min,
-        Math.min(max, value)
-    );
+    if (!saved) {
+      return structuredClone(DEFAULT_SAVE);
+    }
 
+    const parsed = JSON.parse(saved);
+
+    return {
+      ...structuredClone(DEFAULT_SAVE),
+      ...parsed,
+      outfit: {
+        ...DEFAULT_SAVE.outfit,
+        ...(parsed.outfit || {})
+      },
+      player: {
+        ...DEFAULT_SAVE.player,
+        ...(parsed.player || {})
+      }
+    };
+  } catch (error) {
+    console.warn("Save data could not be loaded.", error);
+    return structuredClone(DEFAULT_SAVE);
+  }
 }
 
+function saveGame() {
+  saveData.player.x = player.x;
+  saveData.player.y = player.y;
+  saveData.player.direction = player.direction;
 
-function updateCamera(){
-
-    const targetX =
-        player.x - W / 2;
-
-    const targetY =
-        player.y - H / 2;
-
-    const maxX =
-        Math.max(0, WORLD.width - W);
-
-    const maxY =
-        Math.max(0, WORLD.height - H);
-
-    camera.x +=
-        (clamp(targetX, 0, maxX) - camera.x)
-        * camera.smoothing;
-
-    camera.y +=
-        (clamp(targetY, 0, maxY) - camera.y)
-        * camera.smoothing;
-
-}
-
-
-function screenX(worldX){
-
-    return worldX - camera.x;
-
-}
-
-
-function screenY(worldY){
-
-    return worldY - camera.y;
-
+  localStorage.setItem(
+    SAVE_KEY,
+    JSON.stringify(saveData)
+  );
 }
 
 
 /* =========================================================
-   INPUT
-========================================================= */
+   APPLY SAVED PLAYER
+   ========================================================= */
+
+player.x = saveData.player.x;
+player.y = saveData.player.y;
+player.direction = saveData.player.direction;
+
+let outfit = {
+  ...saveData.outfit
+};
+
+
+/* =========================================================
+   KEYBOARD
+   ========================================================= */
 
 const keys = {};
 
-window.addEventListener("keydown", event => {
+window.addEventListener("keydown", function (event) {
 
-    const key = event.key.toLowerCase();
+  const key = event.key.toLowerCase();
 
-    keys[key] = true;
+  keys[key] = true;
 
-    /*
-       Prevent page scrolling with movement keys.
-    */
+  if (
+    key === "arrowup" ||
+    key === "arrowdown" ||
+    key === "arrowleft" ||
+    key === "arrowright" ||
+    key === " "
+  ) {
+    event.preventDefault();
+  }
 
-    if(
-        [
-            "w",
-            "a",
-            "s",
-            "d",
-            "arrowup",
-            "arrowdown",
-            "arrowleft",
-            "arrowright",
-            " "
-        ].includes(key)
-    ){
+  if (key === "o") {
+    toggleOutfit();
+  }
 
-        event.preventDefault();
-
-    }
-
-    /*
-       O = Outfit
-    */
-
-    if(
-        key === "o" &&
-        !isTyping()
-    ){
-
-        toggleOutfit();
-
-    }
-
-    /*
-       E = interact
-    */
-
-    if(
-        key === "e" &&
-        !isTyping()
-    ){
-
-        interact();
-
-    }
-
-    /*
-       ESC = close
-    */
-
-    if(key === "escape"){
-
-        if(
-            dialog &&
-            dialog.classList.contains("show")
-        ){
-
-            closeDialog();
-
-        }
-
-        else if(
-            outfitPanel &&
-            !outfitPanel.classList.contains("closed")
-        ){
-
-            toggleOutfit();
-
-        }
-
-    }
+  if (key === "e") {
+    interact();
+  }
 
 });
 
-
-window.addEventListener("keyup", event => {
-
-    keys[event.key.toLowerCase()] = false;
-
+window.addEventListener("keyup", function (event) {
+  keys[event.key.toLowerCase()] = false;
 });
-
-
-window.addEventListener("blur", () => {
-
-    for(const key in keys){
-
-        keys[key] = false;
-
-    }
-
-});
-
-
-function isTyping(){
-
-    const active =
-        document.activeElement;
-
-    if(!active) return false;
-
-    return (
-        active.tagName === "INPUT" ||
-        active.tagName === "TEXTAREA"
-    );
-
-}
 
 
 /* =========================================================
-   RANDOM
-========================================================= */
+   LANDMARKS
+   ========================================================= */
 
-function rand(min, max){
+const landmarks = [
 
-    return Math.random() *
-        (max - min) +
-        min;
+  {
+    name: "Celestia Castle",
+    x: 1700,
+    y: 360,
+    w: 650,
+    h: 420,
+    type: "castle",
+    color: "#cdb8f0"
+  },
 
-}
+  {
+    name: "Whispering Forest",
+    x: 350,
+    y: 500,
+    w: 850,
+    h: 850,
+    type: "forest",
+    color: "#a9d4ad"
+  },
 
+  {
+    name: "Central Plaza",
+    x: 1450,
+    y: 1050,
+    w: 700,
+    h: 500,
+    type: "plaza",
+    color: "#ead7b0"
+  },
 
-function randInt(min, max){
+  {
+    name: "Cloudhaven Village",
+    x: 2450,
+    y: 850,
+    w: 800,
+    h: 700,
+    type: "village",
+    color: "#f0c9d9"
+  },
 
-    return Math.floor(
-        rand(min, max + 1)
-    );
+  {
+    name: "Your Home",
+    x: 2550,
+    y: 1650,
+    w: 420,
+    h: 330,
+    type: "home",
+    color: "#dfb9d5"
+  },
 
-}
+  {
+    name: "Pet Garden",
+    x: 950,
+    y: 1650,
+    w: 480,
+    h: 350,
+    type: "garden",
+    color: "#b8d9ad"
+  },
+
+  {
+    name: "Sky Dock",
+    x: 3000,
+    y: 350,
+    w: 430,
+    h: 300,
+    type: "dock",
+    color: "#b9d7ed"
+  },
+
+  {
+    name: "Starfall Bridge",
+    x: 1550,
+    y: 1850,
+    w: 700,
+    h: 150,
+    type: "bridge",
+    color: "#c7a7df"
+  }
+
+];
 
 
 /* =========================================================
-   DECORATION DATA
-========================================================= */
+   HOUSES
+   ========================================================= */
+
+const houses = [
+
+  {
+    x: 2580,
+    y: 950,
+    w: 230,
+    h: 190,
+    color: "#e8b6c8"
+  },
+
+  {
+    x: 2910,
+    y: 1010,
+    w: 230,
+    h: 190,
+    color: "#b7c9ea"
+  },
+
+  {
+    x: 2700,
+    y: 1280,
+    w: 230,
+    h: 190,
+    color: "#d8c1ec"
+  },
+
+  {
+    x: 3060,
+    y: 1310,
+    w: 230,
+    h: 190,
+    color: "#f0d59d"
+  }
+
+];
+
+
+/* =========================================================
+   NPCs
+   IMPORTANT:
+   These are NPCs, NOT real multiplayer players.
+   ⭐ is reserved for real players later.
+   ========================================================= */
+
+const npcs = [
+
+  {
+    x: 1580,
+    y: 1240,
+    name: "Luna",
+    icon: "💬",
+    color: "#d6a5eb",
+    dialogue: [
+      "Oh! You're finally here, Eunseorin.",
+      "Welcome to Cloudhaven.",
+      "The castle has been glowing strangely lately...",
+      "Maybe there's a secret waiting for you."
+    ],
+    line: 0
+  },
+
+  {
+    x: 2050,
+    y: 1300,
+    name: "Alya",
+    icon: "💬",
+    color: "#f0b0d1",
+    dialogue: [
+      "The plaza is always so peaceful.",
+      "I love watching the clouds from here.",
+      "You should visit the Pet Garden sometime!"
+    ],
+    line: 0
+  },
+
+  {
+    x: 2210,
+    y: 1480,
+    name: "Mika",
+    icon: "💬",
+    color: "#9dc4e9",
+    dialogue: [
+      "Hey, Eunseorin!",
+      "Have you explored the Whispering Forest?",
+      "People say the trees remember old stories."
+    ],
+    line: 0
+  }
+
+];
+
+
+/* =========================================================
+   DECORATIONS
+   ========================================================= */
 
 const trees = [];
 const flowers = [];
@@ -412,1198 +357,1817 @@ const clouds = [];
 const sparkles = [];
 
 
+/* deterministic random generator */
+
+let seed = 123456;
+
+function random() {
+  seed = (seed * 9301 + 49297) % 233280;
+  return seed / 233280;
+}
+
+
 /* =========================================================
-   FIXED WORLD DECORATIONS
-========================================================= */
+   GENERATE TREES
+   ========================================================= */
 
-function generateDecorations(){
+for (let i = 0; i < 120; i++) {
 
-    /*
-       Trees
-    */
+  const x = 120 + random() * (WORLD.width - 240);
+  const y = 160 + random() * (WORLD.height - 320);
 
-    for(let i = 0; i < 125; i++){
+  if (isInsideAnyLandmark(x, y, 100)) {
+    continue;
+  }
 
-        trees.push({
-
-            x: rand(150, WORLD.width - 150),
-
-            y: rand(180, WORLD.height - 150),
-
-            size: rand(28, 54),
-
-            variant: randInt(0, 2)
-
-        });
-
-    }
+  trees.push({
+    x,
+    y,
+    size: 0.8 + random() * 0.5
+  });
+}
 
 
-    /*
-       Flowers
-    */
+/* =========================================================
+   GENERATE FLOWERS
+   ========================================================= */
 
-    for(let i = 0; i < 190; i++){
+for (let i = 0; i < 180; i++) {
 
-        flowers.push({
+  const x = 100 + random() * (WORLD.width - 200);
+  const y = 130 + random() * (WORLD.height - 260);
 
-            x: rand(100, WORLD.width - 100),
-
-            y: rand(180, WORLD.height - 100),
-
-            type: randInt(0, 3)
-
-        });
-
-    }
-
-
-    /*
-       Clouds
-    */
-
-    for(let i = 0; i < 28; i++){
-
-        clouds.push({
-
-            x: rand(-200, WORLD.width),
-
-            y: rand(80, 720),
-
-            size: rand(80, 210),
-
-            speed: rand(8, 20)
-
-        });
-
-    }
+  flowers.push({
+    x,
+    y,
+    size: 0.7 + random() * 0.7,
+    type: Math.floor(random() * 4)
+  });
+}
 
 
-    /*
-       Sparkles
-    */
+/* =========================================================
+   GENERATE CLOUDS
+   ========================================================= */
 
-    for(let i = 0; i < 80; i++){
+for (let i = 0; i < 35; i++) {
 
-        sparkles.push({
-
-            x: rand(80, WORLD.width - 80),
-
-            y: rand(80, WORLD.height - 80),
-
-            size: rand(2, 6),
-
-            phase: rand(0, Math.PI * 2)
-
-        });
-
-    }
+  clouds.push({
+    x: random() * WORLD.width,
+    y: 80 + random() * 500,
+    size: 0.7 + random() * 1.2,
+    speed: 5 + random() * 10
+  });
 
 }
 
-generateDecorations();
-
 
 /* =========================================================
-   LANDMARKS
-========================================================= */
+   UTILS
+   ========================================================= */
 
-const landmarks = [
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
 
-    {
-        x: 1800,
-        y: 370,
-        w: 600,
-        h: 430,
-        name: "Celestia Castle",
-        type: "castle",
-        icon: "🏰",
-        dialogue:
-            "The castle gates shimmer softly in the Cloudhaven sunlight."
-    },
+function distance(x1, y1, x2, y2) {
+  return Math.hypot(
+    x1 - x2,
+    y1 - y2
+  );
+}
 
-    {
-        x: 700,
-        y: 750,
-        w: 750,
-        h: 800,
-        name: "Whispering Forest",
-        type: "forest",
-        icon: "🌲",
-        dialogue:
-            "You hear tiny whispers between the trees... the forest remembers everyone who visits."
-    },
+function isInsideAnyLandmark(x, y, padding = 0) {
 
-    {
-        x: 1850,
-        y: 1080,
-        w: 500,
-        h: 400,
-        name: "Central Plaza",
-        type: "plaza",
-        icon: "⛲",
-        dialogue:
-            "Cloudhaven's Central Plaza is the heart of the island."
-    },
+  return landmarks.some(item => {
 
-    {
-        x: 2700,
-        y: 900,
-        w: 720,
-        h: 700,
-        name: "Cloudhaven Village",
-        type: "village",
-        icon: "🏘️",
-        dialogue:
-            "Welcome to Cloudhaven Village! The little houses glow warmly beneath the clouds."
-    },
-
-    {
-        x: 2860,
-        y: 1750,
-        w: 500,
-        h: 400,
-        name: "Your Home",
-        type: "home",
-        icon: "🏡",
-        dialogue:
-            "Your cozy home awaits. One day, you'll be able to decorate every little corner."
-    },
-
-    {
-        x: 2050,
-        y: 1900,
-        w: 650,
-        h: 300,
-        name: "Pet Garden",
-        type: "pet",
-        icon: "🐇",
-        dialogue:
-            "The Pet Garden is full of tiny pawprints and magical flowers."
-    },
-
-    {
-        x: 750,
-        y: 1880,
-        w: 600,
-        h: 350,
-        name: "Sky Dock",
-        type: "dock",
-        icon: "⛵",
-        dialogue:
-            "Floating ships come and go from the Sky Dock."
-    },
-
-    {
-        x: 1750,
-        y: 2210,
-        w: 500,
-        h: 180,
-        name: "Starfall Bridge",
-        type: "bridge",
-        icon: "🌉",
-        dialogue:
-            "Starfall Bridge leads toward the quieter side of Cloudhaven."
-    }
-
-];
-
-
-/* =========================================================
-   HOUSES
-========================================================= */
-
-const houses = [
-
-    {
-        x: 2780,
-        y: 980,
-        color: "#8e72b9"
-    },
-
-    {
-        x: 3060,
-        y: 1050,
-        color: "#d184a9"
-    },
-
-    {
-        x: 3300,
-        y: 950,
-        color: "#6d91bb"
-    },
-
-    {
-        x: 2860,
-        y: 1760,
-        color: "#7865a9"
-    }
-
-];
-
-
-/* =========================================================
-   FRIENDS / PLAYERS
-========================================================= */
-
-const players = [
-
-    {
-        x: 1600,
-        y: 1250,
-        name: "Luna",
-        color: "#d6a5eb",
-        icon: "⭐",
-        dialogue:
-            "Hey Eunseorin! Cloudhaven is so pretty today, isn't it?"
-    },
-
-    {
-        x: 2050,
-        y: 1310,
-        name: "Alya",
-        color: "#f0b0d1",
-        icon: "⭐",
-        dialogue:
-            "I heard there are secret places hidden somewhere in the forest..."
-    },
-
-    {
-        x: 2200,
-        y: 1480,
-        name: "Mika",
-        color: "#9dc4e9",
-        icon: "⭐",
-        dialogue:
-            "Let's explore Cloudhaven together someday!"
-    }
-
-];
-
-
-/* =========================================================
-   INTERACTION
-========================================================= */
-
-let nearbyObject = null;
-
-const INTERACT_DISTANCE = 105;
-
-
-/* =========================================================
-   DISTANCE
-========================================================= */
-
-function distance(x1, y1, x2, y2){
-
-    return Math.hypot(
-        x2 - x1,
-        y2 - y1
+    return (
+      x > item.x - padding &&
+      x < item.x + item.w + padding &&
+      y > item.y - padding &&
+      y < item.y + item.h + padding
     );
 
-}
-
-
-/* =========================================================
-   GET NEAREST INTERACTION
-========================================================= */
-
-function getNearbyObject(){
-
-    let closest = null;
-    let closestDistance = Infinity;
-
-
-    /*
-       Players
-    */
-
-    for(const friend of players){
-
-        const d =
-            distance(
-                player.x,
-                player.y,
-                friend.x,
-                friend.y
-            );
-
-        if(
-            d < INTERACT_DISTANCE &&
-            d < closestDistance
-        ){
-
-            closestDistance = d;
-
-            closest = {
-
-                kind: "player",
-
-                data: friend,
-
-                distance: d
-
-            };
-
-        }
-
-    }
-
-
-    /*
-       Landmarks
-    */
-
-    for(const landmark of landmarks){
-
-        const centerX =
-            landmark.x +
-            landmark.w / 2;
-
-        const centerY =
-            landmark.y +
-            landmark.h / 2;
-
-        const d =
-            distance(
-                player.x,
-                player.y,
-                centerX,
-                centerY
-            );
-
-        const interactionDistance =
-            Math.max(
-                INTERACT_DISTANCE,
-                Math.min(
-                    landmark.w,
-                    landmark.h
-                ) * 0.32
-            );
-
-        if(
-            d < interactionDistance &&
-            d < closestDistance
-        ){
-
-            closestDistance = d;
-
-            closest = {
-
-                kind: "landmark",
-
-                data: landmark,
-
-                distance: d
-
-            };
-
-        }
-
-    }
-
-
-    return closest;
-
-}
-
-
-/* =========================================================
-   UPDATE INTERACTION UI
-========================================================= */
-
-function updateInteraction(){
-
-    nearbyObject = getNearbyObject();
-
-    if(!interactBox) return;
-
-
-    if(!nearbyObject){
-
-        interactBox.classList.remove("show");
-
-        return;
-    }
-
-
-    let label = "Interact";
-
-
-    if(
-        nearbyObject.kind === "player"
-    ){
-
-        label =
-            `Talk to ${nearbyObject.data.name}`;
-
-    }
-
-    else if(
-        nearbyObject.kind === "landmark"
-    ){
-
-        label =
-            `Explore ${nearbyObject.data.name}`;
-
-    }
-
-
-    interactBox.innerHTML =
-        `<b>E</b> ${label}`;
-
-    interactBox.classList.add("show");
-
-}
-
-
-/* =========================================================
-   INTERACT
-========================================================= */
-
-function interact(){
-
-    /*
-       If dialog is already open,
-       E closes it.
-    */
-
-    if(
-        dialog &&
-        dialog.classList.contains("show")
-    ){
-
-        closeDialog();
-
-        return;
-
-    }
-
-
-    if(!nearbyObject){
-
-        showToast(
-            "✨ Nothing nearby to interact with."
-        );
-
-        return;
-
-    }
-
-
-    if(
-        nearbyObject.kind === "player"
-    ){
-
-        const friend =
-            nearbyObject.data;
-
-        openDialog(
-            friend.name,
-            friend.dialogue
-        );
-
-        return;
-
-    }
-
-
-    if(
-        nearbyObject.kind === "landmark"
-    ){
-
-        const landmark =
-            nearbyObject.data;
-
-        openDialog(
-            `${landmark.icon} ${landmark.name}`,
-            landmark.dialogue
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   DIALOG
-========================================================= */
-
-function openDialog(name, text){
-
-    if(!dialog) return;
-
-    dialogName.textContent = name;
-
-    dialogText.textContent = text;
-
-    dialog.classList.add("show");
-
-}
-
-
-function closeDialog(){
-
-    if(!dialog) return;
-
-    dialog.classList.remove("show");
-
-}
-
-
-/* =========================================================
-   TOAST
-========================================================= */
-
-let toastTimer = null;
-
-
-function showToast(message){
-
-    if(!toast) return;
-
-    toast.textContent = message;
-
-    toast.classList.add("show");
-
-
-    clearTimeout(toastTimer);
-
-
-    toastTimer = setTimeout(() => {
-
-        toast.classList.remove("show");
-
-    }, 2600);
+  });
 
 }
 
 
 /* =========================================================
    COLLISION
-========================================================= */
+   ========================================================= */
 
 function circleRectCollision(
+  cx,
+  cy,
+  radius,
+  rect
+) {
+
+  const closestX = clamp(
     cx,
+    rect.x,
+    rect.x + rect.w
+  );
+
+  const closestY = clamp(
     cy,
-    radius,
-    rect
-){
+    rect.y,
+    rect.y + rect.h
+  );
 
-    const nearestX =
-        clamp(
-            cx,
-            rect.x,
-            rect.x + rect.w
-        );
+  const dx = cx - closestX;
+  const dy = cy - closestY;
 
-    const nearestY =
-        clamp(
-            cy,
-            rect.y,
-            rect.y + rect.h
-        );
+  return (
+    dx * dx +
+    dy * dy
+  ) < radius * radius;
+}
 
-    const dx =
-        cx - nearestX;
 
-    const dy =
-        cy - nearestY;
+function blocked(x, y) {
 
-    return (
-        dx * dx +
-        dy * dy
-    ) < radius * radius;
+  const radius = player.radius;
+
+  /* world boundary */
+
+  if (
+    x < 90 ||
+    y < 110 ||
+    x > WORLD.width - 90 ||
+    y > WORLD.height - 90
+  ) {
+    return true;
+  }
+
+
+  /* landmarks */
+
+  for (const landmark of landmarks) {
+
+    if (
+      landmark.type === "forest" ||
+      landmark.type === "plaza" ||
+      landmark.type === "bridge"
+    ) {
+      continue;
+    }
+
+    if (
+      circleRectCollision(
+        x,
+        y,
+        radius,
+        {
+          x: landmark.x + 30,
+          y: landmark.y + 30,
+          w: landmark.w - 60,
+          h: landmark.h - 60
+        }
+      )
+    ) {
+      return true;
+    }
+
+  }
+
+
+  /* houses */
+
+  for (const house of houses) {
+
+    if (
+      circleRectCollision(
+        x,
+        y,
+        radius,
+        {
+          x: house.x,
+          y: house.y,
+          w: house.w,
+          h: house.h
+        }
+      )
+    ) {
+      return true;
+    }
+
+  }
+
+
+  /* selected trees */
+
+  for (let i = 0; i < trees.length; i += 2) {
+
+    const tree = trees[i];
+
+    if (
+      distance(
+        x,
+        y,
+        tree.x,
+        tree.y
+      ) < 38
+    ) {
+      return true;
+    }
+
+  }
+
+  return false;
+}
+
+
+/* =========================================================
+   MOVEMENT
+   ========================================================= */
+
+function updateMovement(dt) {
+
+  let dx = 0;
+  let dy = 0;
+
+  if (
+    keys["w"] ||
+    keys["arrowup"]
+  ) {
+    dy -= 1;
+  }
+
+  if (
+    keys["s"] ||
+    keys["arrowdown"]
+  ) {
+    dy += 1;
+  }
+
+  if (
+    keys["a"] ||
+    keys["arrowleft"]
+  ) {
+    dx -= 1;
+  }
+
+  if (
+    keys["d"] ||
+    keys["arrowright"]
+  ) {
+    dx += 1;
+  }
+
+
+  if (dx === 0 && dy === 0) {
+    return;
+  }
+
+
+  const length = Math.hypot(dx, dy);
+
+  dx /= length;
+  dy /= length;
+
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+
+    player.direction =
+      dx > 0 ? "right" : "left";
+
+  } else {
+
+    player.direction =
+      dy > 0 ? "down" : "up";
+
+  }
+
+
+  const moveX =
+    dx * player.speed * dt;
+
+  const moveY =
+    dy * player.speed * dt;
+
+
+  /* X collision */
+
+  if (!blocked(player.x + moveX, player.y)) {
+    player.x += moveX;
+  }
+
+
+  /* Y collision */
+
+  if (!blocked(player.x, player.y + moveY)) {
+    player.y += moveY;
+  }
 
 }
 
 
 /* =========================================================
-   MOVEMENT COLLISION
-========================================================= */
+   CAMERA
+   ========================================================= */
 
-function blocked(x, y){
+function updateCamera(dt) {
 
-    const radius = 20;
+  const targetX =
+    player.x - W / 2;
 
+  const targetY =
+    player.y - H / 2;
 
-    /*
-       World boundaries
-    */
 
-    if(
-        x < radius + 40 ||
-        y < radius + 70 ||
-        x > WORLD.width - radius - 40 ||
-        y > WORLD.height - radius - 40
-    ){
+  const smoothing =
+    1 - Math.pow(0.0001, dt);
 
-        return true;
 
-    }
+  camera.x +=
+    (targetX - camera.x) *
+    smoothing;
 
+  camera.y +=
+    (targetY - camera.y) *
+    smoothing;
 
-    /*
-       Important landmarks
-    */
 
-    for(const landmark of landmarks){
+  camera.x = clamp(
+    camera.x,
+    0,
+    Math.max(0, WORLD.width - W)
+  );
 
-        /*
-           Don't block the paths through
-           the plaza/bridge.
-        */
-
-        if(
-            landmark.type === "plaza" ||
-            landmark.type === "bridge"
-        ){
-
-            continue;
-
-        }
-
-
-        const rect = {
-
-            x:
-                landmark.x + 55,
-
-            y:
-                landmark.y + 55,
-
-            w:
-                Math.max(
-                    40,
-                    landmark.w - 110
-                ),
-
-            h:
-                Math.max(
-                    40,
-                    landmark.h - 110
-                )
-
-        };
-
-
-        if(
-            circleRectCollision(
-                x,
-                y,
-                radius,
-                rect
-            )
-        ){
-
-            return true;
-
-        }
-
-    }
-
-
-    /*
-       Houses
-    */
-
-    for(const house of houses){
-
-        const rect = {
-
-            x: house.x - 60,
-
-            y: house.y - 55,
-
-            w: 120,
-
-            h: 105
-
-        };
-
-
-        if(
-            circleRectCollision(
-                x,
-                y,
-                radius,
-                rect
-            )
-        ){
-
-            return true;
-
-        }
-
-    }
-
-
-    return false;
-
-}
-
-
-/* =========================================================
-   UPDATE MOVEMENT
-========================================================= */
-
-function updateMovement(delta){
-
-    let dx = 0;
-    let dy = 0;
-
-
-    if(
-        keys["w"] ||
-        keys["arrowup"]
-    ){
-
-        dy -= 1;
-
-    }
-
-
-    if(
-        keys["s"] ||
-        keys["arrowdown"]
-    ){
-
-        dy += 1;
-
-    }
-
-
-    if(
-        keys["a"] ||
-        keys["arrowleft"]
-    ){
-
-        dx -= 1;
-
-    }
-
-
-    if(
-        keys["d"] ||
-        keys["arrowright"]
-    ){
-
-        dx += 1;
-
-    }
-
-
-    player.moving =
-        dx !== 0 ||
-        dy !== 0;
-
-
-    if(!player.moving){
-
-        player.animationTime = 0;
-
-        return;
-
-    }
-
-
-    /*
-       Normalize diagonal movement.
-    */
-
-    const length =
-        Math.hypot(dx, dy);
-
-    dx /= length;
-    dy /= length;
-
-
-    /*
-       Direction
-    */
-
-    if(
-        Math.abs(dx) >
-        Math.abs(dy)
-    ){
-
-        player.direction =
-            dx > 0
-                ? "right"
-                : "left";
-
-    }
-
-    else{
-
-        player.direction =
-            dy > 0
-                ? "down"
-                : "up";
-
-    }
-
-
-    /*
-       Delta time movement
-    */
-
-    const movement =
-        player.speed * delta;
-
-
-    const nextX =
-        player.x +
-        dx * movement;
-
-    const nextY =
-        player.y +
-        dy * movement;
-
-
-    /*
-       X movement
-    */
-
-    if(
-        !blocked(
-            nextX,
-            player.y
-        )
-    ){
-
-        player.x = nextX;
-
-    }
-
-
-    /*
-       Y movement
-    */
-
-    if(
-        !blocked(
-            player.x,
-            nextY
-        )
-    ){
-
-        player.y = nextY;
-
-    }
-
-
-    /*
-       Walking animation
-    */
-
-    player.animationTime += delta;
-
-    if(
-        player.animationTime >
-        0.11
-    ){
-
-        player.animationTime = 0;
-
-        player.walkFrame =
-            (player.walkFrame + 1) % 4;
-
-    }
-
-
-    /*
-       Save position
-    */
-
-    gameState.player.x =
-        player.x;
-
-    gameState.player.y =
-        player.y;
-
-    gameState.player.direction =
-        player.direction;
-
-}
-
-
-/* =========================================================
-   UPDATE CLOUDS
-========================================================= */
-
-function updateClouds(delta){
-
-    for(const cloud of clouds){
-
-        cloud.x +=
-            cloud.speed * delta;
-
-        if(
-            cloud.x >
-            WORLD.width + 300
-        ){
-
-            cloud.x = -300;
-
-        }
-
-    }
+  camera.y = clamp(
+    camera.y,
+    0,
+    Math.max(0, WORLD.height - H)
+  );
 
 }
 
 
 /* =========================================================
    BACKGROUND
-========================================================= */
+   ========================================================= */
 
-function drawBackground(){
+function drawBackground() {
 
-    const gradient =
-        ctx.createLinearGradient(
-            0,
-            0,
-            0,
-            H
-        );
-
-
-    if(gameState.isNight){
-
-        gradient.addColorStop(
-            0,
-            "#312a55"
-        );
-
-        gradient.addColorStop(
-            0.55,
-            "#65557f"
-        );
-
-        gradient.addColorStop(
-            1,
-            "#9b82a6"
-        );
-
-    }
-
-    else{
-
-        gradient.addColorStop(
-            0,
-            "#78a9c7"
-        );
-
-        gradient.addColorStop(
-            0.55,
-            "#a9cde0"
-        );
-
-        gradient.addColorStop(
-            1,
-            "#d9c4e6"
-        );
-
-    }
-
-
-    ctx.fillStyle =
-        gradient;
-
-    ctx.fillRect(
-        0,
-        0,
-        W,
-        H
+  const gradient =
+    ctx.createLinearGradient(
+      0,
+      0,
+      0,
+      H
     );
 
-}
+  gradient.addColorStop(
+    0,
+    "#d9c5ef"
+  );
 
+  gradient.addColorStop(
+    0.45,
+    "#f2c7d9"
+  );
 
-/* =========================================================
-   SUN / MOON
-========================================================= */
+  gradient.addColorStop(
+    1,
+    "#b9d7d2"
+  );
 
-function drawCelestial(){
-
-    const x = W * 0.82;
-    const y = 110;
-
-    ctx.save();
-
-    if(gameState.isNight){
-
-        ctx.fillStyle =
-            "rgba(255,244,190,.95)";
-
-        ctx.shadowColor =
-            "rgba(255,240,190,.55)";
-
-        ctx.shadowBlur = 30;
-
-        ctx.beginPath();
-
-        ctx.arc(
-            x,
-            y,
-            27,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-    }
-
-    else{
-
-        ctx.fillStyle =
-            "rgba(255,230,150,.95)";
-
-        ctx.shadowColor =
-            "rgba(255,225,150,.55)";
-
-        ctx.shadowBlur = 40;
-
-        ctx.beginPath();
-
-        ctx.arc(
-            x,
-            y,
-            35,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-    }
-
-    ctx.restore();
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, W, H);
 
 }
 
 
 /* =========================================================
    CLOUDS
-========================================================= */
+   ========================================================= */
 
-function drawClouds(){
+function drawClouds(time) {
 
-    for(const cloud of clouds){
+  for (const cloud of clouds) {
 
-        const x =
-            screenX(cloud.x);
+    const x =
+      cloud.x -
+      camera.x * 0.25 +
+      Math.sin(time * 0.00005 + cloud.y) * 15;
 
-        const y =
-            screenY(cloud.y);
+    const y =
+      cloud.y -
+      camera.y * 0.15;
 
-
-        if(
-            x < -350 ||
-            x > W + 350
-        ){
-
-            continue;
-
-        }
-
-
-        ctx.save();
-
-        ctx.fillStyle =
-            gameState.isNight
-                ? "rgba(220,214,245,.18)"
-                : "rgba(255,247,251,.75)";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            x,
-            y,
-            cloud.size * 0.28,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.arc(
-            x + cloud.size * 0.28,
-            y - 15,
-            cloud.size * 0.32,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.arc(
-            x + cloud.size * 0.55,
-            y,
-            cloud.size * 0.35,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-        ctx.restore();
-
+    if (
+      x < -250 ||
+      x > W + 250
+    ) {
+      continue;
     }
+
+    drawCloud(
+      x,
+      y,
+      cloud.size
+    );
+
+  }
+
+}
+
+
+function drawCloud(x, y, scale) {
+
+  ctx.save();
+
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  ctx.fillStyle =
+    "rgba(255,255,255,.72)";
+
+  ctx.beginPath();
+
+  ctx.arc(-45, 8, 30, 0, Math.PI * 2);
+  ctx.arc(-10, -10, 42, 0, Math.PI * 2);
+  ctx.arc(35, 8, 32, 0, Math.PI * 2);
+
+  ctx.fillRect(
+    -65,
+    8,
+    130,
+    30
+  );
+
+  ctx.fill();
+
+  ctx.restore();
 
 }
 
 
 /* =========================================================
-   FLOATING ISLAND
-========================================================= */
+   ISLAND
+   ========================================================= */
 
-function drawIsland(){
+function drawIsland() {
+
+  ctx.save();
+
+  ctx.translate(
+    -camera.x,
+    -camera.y
+  );
+
+
+  /* shadow */
+
+  ctx.fillStyle =
+    "rgba(70,50,90,.15)";
+
+  ctx.beginPath();
+
+  ctx.ellipse(
+    WORLD.width / 2,
+    WORLD.height / 2 + 100,
+    1650,
+    1000,
+    0,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  /* main island */
+
+  ctx.fillStyle =
+    "#82ae7c";
+
+  ctx.beginPath();
+
+  ctx.ellipse(
+    WORLD.width / 2,
+    WORLD.height / 2,
+    1620,
+    980,
+    0,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  /* inner grass */
+
+  ctx.fillStyle =
+    "#92bc88";
+
+  ctx.beginPath();
+
+  ctx.ellipse(
+    WORLD.width / 2,
+    WORLD.height / 2 - 15,
+    1530,
+    900,
+    0,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  /* island bottom clouds */
+
+  ctx.fillStyle =
+    "rgba(255,255,255,.75)";
+
+  for (let i = 0; i < 12; i++) {
 
     const x =
-        screenX(1800);
+      500 + i * 260;
 
     const y =
-        screenY(1200);
+      WORLD.height - 100;
+
+    ctx.beginPath();
+
+    ctx.arc(
+      x,
+      y,
+      90,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+
+  }
 
 
-    ctx.save();
+  ctx.restore();
+
+}
 
 
-    /*
-       Shadow / underside
-    */
+/* =========================================================
+   PATHS
+   ========================================================= */
+
+function drawPaths() {
+
+  ctx.save();
+
+  ctx.translate(
+    -camera.x,
+    -camera.y
+  );
+
+  ctx.lineCap = "round";
+
+
+  /* castle path */
+
+  ctx.strokeStyle =
+    "#e7d5ad";
+
+  ctx.lineWidth = 100;
+
+  ctx.beginPath();
+
+  ctx.moveTo(
+    1800,
+    1100
+  );
+
+  ctx.lineTo(
+    2000,
+    760
+  );
+
+  ctx.stroke();
+
+
+  /* village path */
+
+  ctx.beginPath();
+
+  ctx.moveTo(
+    2100,
+    1300
+  );
+
+  ctx.lineTo(
+    2600,
+    1150
+  );
+
+  ctx.stroke();
+
+
+  /* home path */
+
+  ctx.beginPath();
+
+  ctx.moveTo(
+    1900,
+    1500
+  );
+
+  ctx.lineTo(
+    2700,
+    1750
+  );
+
+  ctx.stroke();
+
+
+  /* garden path */
+
+  ctx.beginPath();
+
+  ctx.moveTo(
+    1600,
+    1500
+  );
+
+  ctx.lineTo(
+    1200,
+    1750
+  );
+
+  ctx.stroke();
+
+
+  ctx.restore();
+
+}
+
+
+/* =========================================================
+   LANDMARKS
+   ========================================================= */
+
+function drawLandmarks() {
+
+  ctx.save();
+
+  ctx.translate(
+    -camera.x,
+    -camera.y
+  );
+
+
+  for (const landmark of landmarks) {
+
+    drawLandmark(
+      landmark
+    );
+
+  }
+
+
+  ctx.restore();
+
+}
+
+
+function drawLandmark(item) {
+
+  const {
+    x,
+    y,
+    w,
+    h,
+    type,
+    name
+  } = item;
+
+
+  if (type === "castle") {
+
+    drawCastle(
+      x + w / 2,
+      y + h / 2
+    );
+
+  }
+
+  else if (type === "forest") {
+
+    /* forest label only */
+
+    drawLabel(
+      name,
+      x + w / 2,
+      y + 40
+    );
+
+  }
+
+  else if (type === "plaza") {
 
     ctx.fillStyle =
-        "#584362";
+      "#e9d4a8";
+
+    ctx.beginPath();
+
+    ctx.ellipse(
+      x + w / 2,
+      y + h / 2,
+      w / 2,
+      h / 2,
+      0,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+
+    drawLabel(
+      name,
+      x + w / 2,
+      y + 40
+    );
+
+  }
+
+  else if (type === "village") {
+
+    drawLabel(
+      name,
+      x + w / 2,
+      y + 40
+    );
+
+  }
+
+  else if (type === "home") {
+
+    drawHouse(
+      x + w / 2,
+      y + h / 2,
+      "#dcb2cf"
+    );
+
+    drawLabel(
+      name,
+      x + w / 2,
+      y + 35
+    );
+
+  }
+
+  else if (type === "garden") {
+
+    ctx.fillStyle =
+      "#a8c994";
+
+    ctx.beginPath();
+
+    ctx.roundRect(
+      x,
+      y,
+      w,
+      h,
+      50
+    );
+
+    ctx.fill();
+
+    drawLabel(
+      name,
+      x + w / 2,
+      y + 35
+    );
+
+  }
+
+  else if (type === "dock") {
+
+    ctx.fillStyle =
+      "#d9b884";
+
+    ctx.fillRect(
+      x,
+      y + 90,
+      w,
+      80
+    );
+
+    drawLabel(
+      name,
+      x + w / 2,
+      y + 45
+    );
+
+  }
+
+  else if (type === "bridge") {
+
+    ctx.fillStyle =
+      "#bd93d3";
+
+    ctx.fillRect(
+      x,
+      y,
+      w,
+      h
+    );
+
+    drawLabel(
+      name,
+      x + w / 2,
+      y - 20
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   CASTLE
+   ========================================================= */
+
+function drawCastle(x, y) {
+
+  ctx.save();
+
+  ctx.translate(x, y);
+
+  /* main building */
+
+  ctx.fillStyle =
+    "#eee4fa";
+
+  ctx.fillRect(
+    -220,
+    -90,
+    440,
+    260
+  );
+
+
+  /* towers */
+
+  const towers = [
+    -180,
+    0,
+    180
+  ];
+
+  for (const tx of towers) {
+
+    ctx.fillStyle =
+      "#d5bced";
+
+    ctx.fillRect(
+      tx - 45,
+      -180,
+      90,
+      270
+    );
+
+    ctx.fillStyle =
+      "#9b78ca";
 
     ctx.beginPath();
 
     ctx.moveTo(
-        x - 1710,
-        y - 1010
+      tx - 60,
+      -180
     );
 
     ctx.lineTo(
-        x + 1660,
-        y - 1010
+      tx,
+      -250
     );
 
     ctx.lineTo(
-        x + 1760,
-        y + 850
+      tx + 60,
+      -180
+    );
+
+    ctx.closePath();
+
+    ctx.fill();
+
+  }
+
+
+  /* door */
+
+  ctx.fillStyle =
+    "#80609e";
+
+  ctx.beginPath();
+
+  ctx.arc(
+    0,
+    100,
+    55,
+    Math.PI,
+    0
+  );
+
+  ctx.fillRect(
+    -55,
+    100,
+    110,
+    70
+  );
+
+  ctx.fill();
+
+
+  ctx.restore();
+
+}
+
+
+/* =========================================================
+   HOUSE
+   ========================================================= */
+
+function drawHouse(
+  x,
+  y,
+  roofColor
+) {
+
+  ctx.save();
+
+  ctx.translate(x, y);
+
+  ctx.fillStyle =
+    "#fff3dc";
+
+  ctx.fillRect(
+    -100,
+    -20,
+    200,
+    130
+  );
+
+
+  ctx.fillStyle =
+    roofColor;
+
+  ctx.beginPath();
+
+  ctx.moveTo(
+    -130,
+    -20
+  );
+
+  ctx.lineTo(
+    0,
+    -130
+  );
+
+  ctx.lineTo(
+    130,
+    -20
+  );
+
+  ctx.closePath();
+
+  ctx.fill();
+
+
+  ctx.fillStyle =
+    "#8b668d";
+
+  ctx.fillRect(
+    -25,
+    45,
+    50,
+    65
+  );
+
+
+  ctx.fillStyle =
+    "#b9d9ee";
+
+  ctx.fillRect(
+    -75,
+    20,
+    45,
+    45
+  );
+
+  ctx.fillRect(
+    30,
+    20,
+    45,
+    45
+  );
+
+
+  ctx.restore();
+
+}
+
+
+/* =========================================================
+   TREES
+   ========================================================= */
+
+function drawTrees() {
+
+  ctx.save();
+
+  ctx.translate(
+    -camera.x,
+    -camera.y
+  );
+
+
+  for (const tree of trees) {
+
+    drawTree(
+      tree.x,
+      tree.y,
+      tree.size
+    );
+
+  }
+
+
+  ctx.restore();
+
+}
+
+
+function drawTree(
+  x,
+  y,
+  scale
+) {
+
+  ctx.save();
+
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+
+  ctx.fillStyle =
+    "#765b4c";
+
+  ctx.fillRect(
+    -12,
+    10,
+    24,
+    65
+  );
+
+
+  ctx.fillStyle =
+    "#4f8d69";
+
+  ctx.beginPath();
+
+  ctx.arc(
+    -25,
+    5,
+    42,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.arc(
+    25,
+    5,
+    42,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.arc(
+    0,
+    -28,
+    48,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  ctx.fillStyle =
+    "rgba(255,255,255,.15)";
+
+  ctx.beginPath();
+
+  ctx.arc(
+    -14,
+    -35,
+    13,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  ctx.restore();
+
+}
+
+
+/* =========================================================
+   FLOWERS
+   ========================================================= */
+
+function drawFlowers() {
+
+  ctx.save();
+
+  ctx.translate(
+    -camera.x,
+    -camera.y
+  );
+
+
+  const colors = [
+    "#f29bc1",
+    "#c9a5ef",
+    "#f7d57e",
+    "#8cc8e8"
+  ];
+
+
+  for (const flower of flowers) {
+
+    const color =
+      colors[flower.type];
+
+
+    ctx.save();
+
+    ctx.translate(
+      flower.x,
+      flower.y
+    );
+
+    ctx.scale(
+      flower.size,
+      flower.size
+    );
+
+
+    ctx.fillStyle =
+      color;
+
+    for (let i = 0; i < 5; i++) {
+
+      const angle =
+        i * Math.PI * 2 / 5;
+
+      ctx.beginPath();
+
+      ctx.arc(
+        Math.cos(angle) * 7,
+        Math.sin(angle) * 7,
+        5,
+        0,
+        Math.PI * 2
+      );
+
+      ctx.fill();
+
+    }
+
+
+    ctx.fillStyle =
+      "#f5d875";
+
+    ctx.beginPath();
+
+    ctx.arc(
+      0,
+      0,
+      4,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+
+
+    ctx.restore();
+
+  }
+
+
+  ctx.restore();
+
+}
+
+
+/* =========================================================
+   LABEL
+   ========================================================= */
+
+function drawLabel(
+  text,
+  x,
+  y
+) {
+
+  ctx.save();
+
+  ctx.font =
+    "bold 15px Arial";
+
+  ctx.textAlign =
+    "center";
+
+  const width =
+    ctx.measureText(text).width + 28;
+
+
+  ctx.fillStyle =
+    "rgba(55,42,70,.75)";
+
+  ctx.beginPath();
+
+  ctx.roundRect(
+    x - width / 2,
+    y - 18,
+    width,
+    30,
+    15
+  );
+
+  ctx.fill();
+
+
+  ctx.fillStyle =
+    "#ffffff";
+
+  ctx.fillText(
+    text,
+    x,
+    y + 2
+  );
+
+
+  ctx.restore();
+
+}
+
+
+/* =========================================================
+   NPC
+   ========================================================= */
+
+function drawNPCs() {
+
+  ctx.save();
+
+  ctx.translate(
+    -camera.x,
+    -camera.y
+  );
+
+
+  for (const npc of npcs) {
+
+    drawNPC(
+      npc
+    );
+
+  }
+
+
+  ctx.restore();
+
+}
+
+
+function drawNPC(npc) {
+
+  const bob =
+    Math.sin(
+      performance.now() * 0.003 +
+      npc.x
+    ) * 2;
+
+
+  ctx.save();
+
+  ctx.translate(
+    npc.x,
+    npc.y + bob
+  );
+
+
+  /* shadow */
+
+  ctx.fillStyle =
+    "rgba(50,40,60,.15)";
+
+  ctx.beginPath();
+
+  ctx.ellipse(
+    0,
+    30,
+    22,
+    8,
+    0,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  /* body */
+
+  ctx.fillStyle =
+    npc.color;
+
+  ctx.beginPath();
+
+  ctx.roundRect(
+    -20,
+    -5,
+    40,
+    55,
+    12
+  );
+
+  ctx.fill();
+
+
+  /* head */
+
+  ctx.fillStyle =
+    "#ffe1cc";
+
+  ctx.beginPath();
+
+  ctx.arc(
+    0,
+    -22,
+    21,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  /* hair */
+
+  ctx.fillStyle =
+    "#513d4e";
+
+  ctx.beginPath();
+
+  ctx.arc(
+    0,
+    -29,
+    22,
+    Math.PI,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  /* eyes */
+
+  ctx.fillStyle =
+    "#403344";
+
+  ctx.beginPath();
+
+  ctx.arc(
+    -7,
+    -20,
+    2.5,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.arc(
+    7,
+    -20,
+    2.5,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  /* NPC icon */
+
+  ctx.font =
+    "16px Arial";
+
+  ctx.textAlign =
+    "center";
+
+  ctx.fillText(
+    npc.icon,
+    0,
+    -62
+  );
+
+
+  /* name */
+
+  ctx.font =
+    "bold 12px Arial";
+
+  ctx.fillStyle =
+    "#ffffff";
+
+  ctx.fillText(
+    npc.name,
+    0,
+    70
+  );
+
+
+  ctx.restore();
+
+}
+
+
+/* =========================================================
+   PLAYER
+   ========================================================= */
+
+function drawPlayer() {
+
+  ctx.save();
+
+  ctx.translate(
+    player.x - camera.x,
+    player.y - camera.y
+  );
+
+
+  const walking =
+    keys["w"] ||
+    keys["a"] ||
+    keys["s"] ||
+    keys["d"] ||
+    keys["arrowup"] ||
+    keys["arrowdown"] ||
+    keys["arrowleft"] ||
+    keys["arrowright"];
+
+
+  const bounce =
+    walking
+      ? Math.sin(
+          performance.now() * 0.015
+        ) * 3
+      : 0;
+
+
+  ctx.translate(
+    0,
+    bounce
+  );
+
+
+  /* creator marker */
+
+  ctx.font =
+    "18px Arial";
+
+  ctx.textAlign =
+    "center";
+
+  ctx.fillText(
+    "👑",
+    0,
+    -76
+  );
+
+
+  /* name */
+
+  ctx.font =
+    "bold 12px Arial";
+
+  ctx.fillStyle =
+    "#ffffff";
+
+  ctx.fillText(
+    "Eunseorin",
+    0,
+    -58
+  );
+
+
+  /* shadow */
+
+  ctx.fillStyle =
+    "rgba(50,40,60,.2)";
+
+  ctx.beginPath();
+
+  ctx.ellipse(
+    0,
+    34,
+    23,
+    8,
+    0,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  /* dress */
+
+  const dressColors = {
+    lavender: "#c7a9ed",
+    pink: "#efabc9",
+    blue: "#a8cceb",
+    cream: "#f1d8a6"
+  };
+
+
+  ctx.fillStyle =
+    dressColors[outfit.dress] ||
+    dressColors.lavender;
+
+
+  ctx.beginPath();
+
+  ctx.roundRect(
+    -27,
+    -2,
+    54,
+    55,
+    14
+  );
+
+  ctx.fill();
+
+
+  /* sleeves */
+
+  ctx.fillStyle =
+    dressColors[outfit.dress] ||
+    dressColors.lavender;
+
+  ctx.beginPath();
+
+  ctx.arc(
+    -27,
+    12,
+    10,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.arc(
+    27,
+    12,
+    10,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  /* neck */
+
+  ctx.fillStyle =
+    "#ffdcca";
+
+  ctx.fillRect(
+    -7,
+    -8,
+    14,
+    13
+  );
+
+
+  /* face */
+
+  ctx.beginPath();
+
+  ctx.arc(
+    0,
+    -27,
+    25,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  /* hair */
+
+  const hairColors = {
+    brown: "#654958",
+    black: "#282536",
+    purple: "#7c5a9e",
+    pink: "#d77ca6"
+  };
+
+
+  ctx.fillStyle =
+    hairColors[outfit.hair] ||
+    hairColors.brown;
+
+
+  ctx.beginPath();
+
+  ctx.arc(
+    0,
+    -34,
+    27,
+    Math.PI,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  /* side hair */
+
+  ctx.fillRect(
+    -26,
+    -36,
+    9,
+    35
+  );
+
+  ctx.fillRect(
+    17,
+    -36,
+    9,
+    35
+  );
+
+
+  /* eyes */
+
+  ctx.fillStyle =
+    "#403445";
+
+  ctx.beginPath();
+
+  ctx.arc(
+    -9,
+    -25,
+    4,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.arc(
+    9,
+    -25,
+    4,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  /* eye highlights */
+
+  ctx.fillStyle =
+    "#ffffff";
+
+  ctx.beginPath();
+
+  ctx.arc(
+    -8,
+    -26,
+    1.5,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.arc(
+    10,
+    -26,
+    1.5,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  /* mouth */
+
+  ctx.strokeStyle =
+    "#a76b7e";
+
+  ctx.lineWidth = 2;
+
+  ctx.beginPath();
+
+  ctx.arc(
+    0,
+    -17,
+    5,
+    0,
+    Math.PI
+  );
+
+  ctx.stroke();
+
+
+  /* accessory */
+
+  drawPlayerAccessory();
+
+
+  ctx.restore();
+
+}
+
+
+/* =========================================================
+   PLAYER ACCESSORIES
+   ========================================================= */
+
+function drawPlayerAccessory() {
+
+  if (outfit.accessory === "flower") {
+
+    ctx.fillStyle =
+      "#f28eb5";
+
+    for (let i = 0; i < 5; i++) {
+
+      const angle =
+        i * Math.PI * 2 / 5;
+
+      ctx.beginPath();
+
+      ctx.arc(
+        Math.cos(angle) * 7 - 18,
+        Math.sin(angle) * 7 - 40,
+        5,
+        0,
+        Math.PI * 2
+      );
+
+      ctx.fill();
+
+    }
+
+    ctx.fillStyle =
+      "#f5d86d";
+
+    ctx.beginPath();
+
+    ctx.arc(
+      -18,
+      -40,
+      3,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+
+  }
+
+
+  if (outfit.accessory === "bow") {
+
+    ctx.fillStyle =
+      "#e96b9e";
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+      -15,
+      -42
     );
 
     ctx.lineTo(
-        x + 1280,
-        y + 1100
+      -2,
+      -50
     );
 
     ctx.lineTo(
-        x - 1200,
-        y + 1110
-    );
-
-    ctx.lineTo(
-        x - 1760,
-        y + 850
+      -3,
+      -35
     );
 
     ctx.closePath();
@@ -1611,2454 +2175,1222 @@ function drawIsland(){
     ctx.fill();
 
 
-    /*
-       Grass top
-    */
-
-    ctx.fillStyle =
-        "#78a66e";
-
     ctx.beginPath();
 
-    ctx.roundRect(
-        x - 1720,
-        y - 1080,
-        3440,
-        1920,
-        80
+    ctx.moveTo(
+      -2,
+      -50
     );
+
+    ctx.lineTo(
+      12,
+      -42
+    );
+
+    ctx.lineTo(
+      0,
+      -35
+    );
+
+    ctx.closePath();
 
     ctx.fill();
 
-
-    /*
-       Grass patches
-       FIXED — not random every frame
-    */
-
-    for(
-        let i = 0;
-        i < 35;
-        i++
-    ){
-
-        const px =
-            x - 1650 +
-            ((i * 283) % 3300);
-
-        const py =
-            y - 980 +
-            ((i * 173) % 1700);
-
-        ctx.fillStyle =
-            i % 2 === 0
-                ? "#92bc79"
-                : "#87b574";
-
-        ctx.fillRect(
-            px,
-            py,
-            50 + (i % 4) * 12,
-            12 + (i % 3) * 4
-        );
-
-    }
+  }
 
 
-    ctx.restore();
-
-}
-
-
-/* =========================================================
-   PATHS
-========================================================= */
-
-function drawPaths(){
-
-    ctx.save();
+  if (outfit.accessory === "crown") {
 
     ctx.fillStyle =
-        "#d9c6a8";
-
-
-    /*
-       Castle path
-    */
-
-    ctx.fillRect(
-        screenX(1750),
-        screenY(700),
-        100,
-        850
-    );
-
-
-    /*
-       Village path
-    */
-
-    ctx.fillRect(
-        screenX(1850),
-        screenY(1200),
-        1150,
-        90
-    );
-
-
-    /*
-       Home path
-    */
-
-    ctx.fillRect(
-        screenX(2350),
-        screenY(1300),
-        650,
-        75
-    );
-
-
-    /*
-       Forest path
-    */
-
-    ctx.fillRect(
-        screenX(1250),
-        screenY(1350),
-        700,
-        75
-    );
-
-
-    /*
-       Dock path
-    */
-
-    ctx.fillRect(
-        screenX(1050),
-        screenY(1400),
-        100,
-        550
-    );
-
-
-    /*
-       Bridge path
-    */
-
-    ctx.fillRect(
-        screenX(1750),
-        screenY(1450),
-        90,
-        800
-    );
-
-
-    ctx.restore();
-
-}
-
-
-/* =========================================================
-   DRAW WATER
-========================================================= */
-
-function drawWater(){
-
-    ctx.save();
-
-    const waterX =
-        screenX(850);
-
-    const waterY =
-        screenY(500);
-
-
-    ctx.fillStyle =
-        "rgba(126,190,220,.55)";
-
+      "#f2cc67";
 
     ctx.beginPath();
 
-    ctx.roundRect(
-        waterX,
-        waterY,
-        520,
-        170,
-        70
+    ctx.moveTo(
+      -18,
+      -50
     );
+
+    ctx.lineTo(
+      -12,
+      -35
+    );
+
+    ctx.lineTo(
+      0,
+      -45
+    );
+
+    ctx.lineTo(
+      12,
+      -35
+    );
+
+    ctx.lineTo(
+      18,
+      -50
+    );
+
+    ctx.closePath();
 
     ctx.fill();
 
+  }
 
-    /*
-       little water lines
-    */
 
-    ctx.strokeStyle =
-        "rgba(255,255,255,.3)";
-
-    ctx.lineWidth = 3;
-
-
-    for(let i = 0; i < 5; i++){
-
-        ctx.beginPath();
-
-        ctx.moveTo(
-            waterX + 50,
-            waterY + 30 + i * 27
-        );
-
-        ctx.lineTo(
-            waterX + 190,
-            waterY + 30 + i * 27
-        );
-
-        ctx.stroke();
-
-    }
-
-
-    ctx.restore();
-
-}
-
-
-/* =========================================================
-   FLOWERS
-========================================================= */
-
-function drawFlowers(){
-
-    for(const flower of flowers){
-
-        const x =
-            screenX(flower.x);
-
-        const y =
-            screenY(flower.y);
-
-
-        if(
-            x < -20 ||
-            x > W + 20 ||
-            y < -20 ||
-            y > H + 20
-        ){
-
-            continue;
-
-        }
-
-
-        ctx.save();
-
-        const petals = [
-            "#f5b9d7",
-            "#d8c2f1",
-            "#f7df9d",
-            "#b8d9e8"
-        ];
-
-        ctx.fillStyle =
-            petals[flower.type];
-
-
-        ctx.beginPath();
-
-        ctx.arc(
-            x - 4,
-            y,
-            3,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.arc(
-            x + 4,
-            y,
-            3,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.arc(
-            x,
-            y - 4,
-            3,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.arc(
-            x,
-            y + 4,
-            3,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-
-        ctx.fillStyle =
-            "#f4d889";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            x,
-            y,
-            2.2,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-
-        ctx.restore();
-
-    }
-
-}
-
-
-/* =========================================================
-   TREES
-========================================================= */
-
-function drawTrees(){
-
-    for(const tree of trees){
-
-        const x =
-            screenX(tree.x);
-
-        const y =
-            screenY(tree.y);
-
-
-        if(
-            x < -100 ||
-            x > W + 100 ||
-            y < -120 ||
-            y > H + 120
-        ){
-
-            continue;
-
-        }
-
-
-        ctx.save();
-
-
-        /*
-           Shadow
-        */
-
-        ctx.fillStyle =
-            "rgba(50,45,55,.14)";
-
-        ctx.beginPath();
-
-        ctx.ellipse(
-            x,
-            y + tree.size * .5,
-            tree.size * .75,
-            tree.size * .22,
-            0,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-
-        /*
-           Trunk
-        */
-
-        ctx.fillStyle =
-            "#8a624f";
-
-        ctx.fillRect(
-            x - 5,
-            y - 2,
-            10,
-            tree.size * .8
-        );
-
-
-        /*
-           Leaves
-        */
-
-        const leafColors = [
-            "#79aa73",
-            "#88b67d",
-            "#6e9d6a"
-        ];
-
-
-        ctx.fillStyle =
-            leafColors[tree.variant];
-
-
-        ctx.beginPath();
-
-        ctx.arc(
-            x,
-            y - tree.size * .35,
-            tree.size * .65,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.arc(
-            x - tree.size * .35,
-            y - tree.size * .1,
-            tree.size * .45,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.arc(
-            x + tree.size * .35,
-            y - tree.size * .1,
-            tree.size * .45,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-
-        ctx.restore();
-
-    }
-
-}
-
-
-/* =========================================================
-   HOUSES
-========================================================= */
-
-function drawHouses(){
-
-    for(const house of houses){
-
-        const x =
-            screenX(house.x);
-
-        const y =
-            screenY(house.y);
-
-
-        /*
-           Shadow
-        */
-
-        ctx.fillStyle =
-            "rgba(40,30,50,.15)";
-
-        ctx.beginPath();
-
-        ctx.ellipse(
-            x,
-            y + 60,
-            78,
-            18,
-            0,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-
-        /*
-           House body
-        */
-
-        ctx.fillStyle =
-            "#fff0df";
-
-        ctx.fillRect(
-            x - 58,
-            y - 15,
-            116,
-            76
-        );
-
-
-        /*
-           Roof
-        */
-
-        ctx.fillStyle =
-            house.color;
-
-        ctx.beginPath();
-
-        ctx.moveTo(
-            x - 72,
-            y - 15
-        );
-
-        ctx.lineTo(
-            x,
-            y - 70
-        );
-
-        ctx.lineTo(
-            x + 72,
-            y - 15
-        );
-
-        ctx.closePath();
-
-        ctx.fill();
-
-
-        /*
-           Door
-        */
-
-        ctx.fillStyle =
-            "#70526c";
-
-        ctx.fillRect(
-            x - 12,
-            y + 18,
-            24,
-            43
-        );
-
-
-        /*
-           Window
-        */
-
-        ctx.fillStyle =
-            "#a9d8e8";
-
-        ctx.fillRect(
-            x - 43,
-            y + 2,
-            22,
-            22
-        );
-
-        ctx.fillRect(
-            x + 21,
-            y + 2,
-            22,
-            22
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   LANDMARKS
-========================================================= */
-
-function drawLandmarks(){
-
-    for(const landmark of landmarks){
-
-        const x =
-            screenX(
-                landmark.x +
-                landmark.w / 2
-            );
-
-        const y =
-            screenY(
-                landmark.y +
-                landmark.h / 2
-            );
-
-
-        /*
-           Only draw custom marker,
-           not full rectangle walls.
-        */
-
-        drawLandmarkIcon(
-            x,
-            y,
-            landmark
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   LANDMARK ICON
-========================================================= */
-
-function drawLandmarkIcon(
-    x,
-    y,
-    landmark
-){
-
-    ctx.save();
-
-    ctx.textAlign =
-        "center";
-
-    ctx.textBaseline =
-        "middle";
-
-
-    let size = 50;
-
-
-    switch(landmark.type){
-
-        case "castle":
-            size = 90;
-            break;
-
-        case "forest":
-            size = 65;
-            break;
-
-        case "village":
-            size = 65;
-            break;
-
-        case "home":
-            size = 60;
-            break;
-
-        case "pet":
-            size = 52;
-            break;
-
-        case "dock":
-            size = 58;
-            break;
-
-        case "bridge":
-            size = 50;
-            break;
-
-        default:
-            size = 50;
-
-    }
-
-
-    /*
-       soft shadow
-    */
+  if (outfit.accessory === "star") {
 
     ctx.fillStyle =
-        "rgba(40,30,50,.15)";
+      "#f7d86d";
 
-    ctx.beginPath();
-
-    ctx.ellipse(
-        x,
-        y + size * .5,
-        size,
-        size * .23,
-        0,
-        0,
-        Math.PI * 2
+    drawStar(
+      20,
+      -47,
+      8
     );
 
-    ctx.fill();
-
-
-    /*
-       Icon
-    */
-
-    ctx.font =
-        `${size}px "Segoe UI Emoji", sans-serif`;
-
-    ctx.fillText(
-        landmark.icon,
-        x,
-        y
-    );
-
-
-    /*
-       Name
-    */
-
-    ctx.font =
-        "700 13px DM Sans, sans-serif";
-
-    ctx.fillStyle =
-        "rgba(55,42,72,.78)";
-
-    ctx.fillText(
-        landmark.name,
-        x,
-        y + size * .7
-    );
-
-
-    ctx.restore();
+  }
 
 }
 
 
-/* =========================================================
-   PLAYERS
-========================================================= */
+function drawStar(
+  x,
+  y,
+  radius
+) {
 
-function drawPlayers(){
+  ctx.beginPath();
 
-    for(const friend of players){
+  for (let i = 0; i < 10; i++) {
 
-        const x =
-            screenX(friend.x);
+    const angle =
+      -Math.PI / 2 +
+      i * Math.PI / 5;
 
-        const y =
-            screenY(friend.y);
+    const r =
+      i % 2 === 0
+        ? radius
+        : radius * 0.45;
 
+    const px =
+      x + Math.cos(angle) * r;
 
-        if(
-            x < -80 ||
-            x > W + 80 ||
-            y < -100 ||
-            y > H + 100
-        ){
+    const py =
+      y + Math.sin(angle) * r;
 
-            continue;
-
-        }
-
-
-        ctx.save();
-
-
-        /*
-           Shadow
-        */
-
-        ctx.fillStyle =
-            "rgba(40,30,50,.16)";
-
-        ctx.beginPath();
-
-        ctx.ellipse(
-            x,
-            y + 25,
-            23,
-            8,
-            0,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-
-        /*
-           Body
-        */
-
-        ctx.fillStyle =
-            friend.color;
-
-        ctx.beginPath();
-
-        ctx.arc(
-            x,
-            y + 4,
-            17,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-
-        /*
-           Head
-        */
-
-        ctx.fillStyle =
-            "#f7d5bd";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            x,
-            y - 13,
-            11,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-
-        /*
-           Hair
-        */
-
-        ctx.fillStyle =
-            "#754f4d";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            x,
-            y - 17,
-            12,
-            Math.PI,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-
-        /*
-           Player icon
-        */
-
-        ctx.font =
-            "16px sans-serif";
-
-        ctx.textAlign =
-            "center";
-
-        ctx.fillText(
-            friend.icon,
-            x,
-            y - 35
-        );
-
-
-        /*
-           Name
-        */
-
-        ctx.font =
-            "700 10px DM Sans, sans-serif";
-
-        ctx.fillStyle =
-            "#fff";
-
-        ctx.shadowColor =
-            "rgba(40,20,50,.5)";
-
-        ctx.shadowBlur = 4;
-
-        ctx.fillText(
-            friend.name,
-            x,
-            y + 42
-        );
-
-
-        ctx.restore();
-
+    if (i === 0) {
+      ctx.moveTo(px, py);
+    } else {
+      ctx.lineTo(px, py);
     }
+
+  }
+
+  ctx.closePath();
+  ctx.fill();
 
 }
 
 
 /* =========================================================
    OUTFIT SYSTEM
-========================================================= */
+   ========================================================= */
 
-const outfit = {
+function toggleOutfit() {
 
-    hair:
-        gameState.outfit.hair || "brown",
-
-    dress:
-        gameState.outfit.dress || "lavender",
-
-    accessory:
-        gameState.outfit.accessory || "flower"
-
-};
-
-
-/* =========================================================
-   OUTFIT DATA
-========================================================= */
-
-const outfitData = {
-
-    hair: {
-
-        brown: {
-            color: "#704b42"
-        },
-
-        black: {
-            color: "#292530"
-        },
-
-        purple: {
-            color: "#745184"
-        },
-
-        pink: {
-            color: "#d58cae"
-        }
-
-    },
-
-
-    dress: {
-
-        lavender: {
-            color: "#b9a1df"
-        },
-
-        pink: {
-            color: "#efaed0"
-        },
-
-        blue: {
-            color: "#a9cde6"
-        },
-
-        cream: {
-            color: "#f5e5c7"
-        }
-
-    },
-
-
-    accessory: {
-
-        flower: {
-            icon: "🌸"
-        },
-
-        bow: {
-            icon: "🎀"
-        },
-
-        crown: {
-            icon: "👑"
-        },
-
-        star: {
-            icon: "⭐"
-        }
-
-    }
-
-};
-
-
-/* =========================================================
-   OUTFIT OPTIONS
-========================================================= */
-
-function setupOutfitOptions(){
-
-    setupOptionGroup(
-        hairOptions,
-        "hair"
+  const panel =
+    document.getElementById(
+      "outfitPanel"
     );
 
-    setupOptionGroup(
-        dressOptions,
-        "dress"
-    );
+  if (!panel) {
+    return;
+  }
 
-    setupOptionGroup(
-        accessoryOptions,
-        "accessory"
-    );
+
+  const isOpen =
+    panel.classList.contains("show") ||
+    getComputedStyle(panel).display !== "none";
+
+
+  if (isOpen) {
+
+    panel.classList.remove("show");
+
+    /*
+      Existing CELESTIA CSS normally hides
+      the panel when .show is absent.
+    */
+
+    panel.style.display = "none";
+
+  } else {
+
+    panel.style.display = "block";
+
+    panel.classList.add("show");
+
+    updateOutfitButtons();
+
+  }
 
 }
 
 
-function setupOptionGroup(
-    container,
-    type
-){
+function updateOutfitButtons() {
 
-    if(!container) return;
+  const groups = [
+    {
+      id: "hairOptions",
+      value: outfit.hair
+    },
+    {
+      id: "dressOptions",
+      value: outfit.dress
+    },
+    {
+      id: "accessoryOptions",
+      value: outfit.accessory
+    }
+  ];
+
+
+  for (const group of groups) {
+
+    const container =
+      document.getElementById(
+        group.id
+      );
+
+    if (!container) {
+      continue;
+    }
 
 
     const buttons =
-        container.querySelectorAll(
-            ".option"
-        );
+      container.querySelectorAll(
+        ".option"
+      );
 
 
     buttons.forEach(button => {
 
-        button.addEventListener(
-            "click",
-            () => {
+      const active =
+        button.dataset.value ===
+        group.value;
 
-                const value =
-                    button.dataset.value;
-
-                if(!value) return;
-
-                outfit[type] =
-                    value;
-
-                gameState.outfit[type] =
-                    value;
-
-                updateOutfitButtons();
-
-                updatePreview();
-
-            }
-        );
+      button.classList.toggle(
+        "active",
+        active
+      );
 
     });
 
-}
+  }
 
 
-/* =========================================================
-   UPDATE OUTFIT BUTTONS
-========================================================= */
-
-function updateOutfitButtons(){
-
-    updateGroupActive(
-        hairOptions,
-        outfit.hair
-    );
-
-    updateGroupActive(
-        dressOptions,
-        outfit.dress
-    );
-
-    updateGroupActive(
-        accessoryOptions,
-        outfit.accessory
-    );
+  renderOutfitPreview();
 
 }
 
 
-function updateGroupActive(
-    container,
-    value
-){
+function setupOutfitButtons() {
 
-    if(!container) return;
+  const containers = [
+    "hairOptions",
+    "dressOptions",
+    "accessoryOptions"
+  ];
+
+
+  containers.forEach(id => {
+
+    const container =
+      document.getElementById(id);
+
+    if (!container) {
+      return;
+    }
 
 
     container
-        .querySelectorAll(".option")
-        .forEach(button => {
+      .querySelectorAll(".option")
+      .forEach(button => {
 
-            button.classList.toggle(
-                "active",
-                button.dataset.value === value
-            );
+        button.addEventListener(
+          "click",
+          function () {
 
-        });
+            const value =
+              this.dataset.value;
+
+            if (!value) {
+              return;
+            }
+
+
+            if (id === "hairOptions") {
+              outfit.hair = value;
+            }
+
+            if (id === "dressOptions") {
+              outfit.dress = value;
+            }
+
+            if (id === "accessoryOptions") {
+              outfit.accessory = value;
+            }
+
+
+            updateOutfitButtons();
+
+          }
+        );
+
+      });
+
+  });
+
+}
+
+
+function saveOutfit() {
+
+  saveData.outfit = {
+    ...outfit
+  };
+
+  saveGame();
+
+  showToast(
+    "Outfit saved ✦"
+  );
 
 }
 
 
 /* =========================================================
-   CHARACTER PREVIEW
-========================================================= */
+   OUTFIT PREVIEW
+   ========================================================= */
 
-function updatePreview(){
+function renderOutfitPreview() {
 
-    if(!previewCharacter) return;
+  const preview =
+    document.getElementById(
+      "previewCharacter"
+    );
 
-
-    /*
-       We build a small chibi
-       using HTML characters.
-
-       Later this can be replaced
-       with the real pixel sprite.
-    */
-
-    const hair =
-        outfitData.hair[
-            outfit.hair
-        ];
+  if (!preview) {
+    return;
+  }
 
 
-    const dress =
-        outfitData.dress[
-            outfit.dress
-        ];
+  const hair = {
+    brown: "🤎",
+    black: "🖤",
+    purple: "💜",
+    pink: "🩷"
+  }[outfit.hair] || "🤎";
 
 
-    const accessory =
-        outfitData.accessory[
-            outfit.accessory
-        ];
+  const dress = {
+    lavender: "💜",
+    pink: "🩷",
+    blue: "💙",
+    cream: "🤍"
+  }[outfit.dress] || "💜";
 
 
-    previewCharacter.innerHTML = `
-
-        <div
-            style="
-                position:relative;
-                width:70px;
-                height:110px;
-            "
-        >
-
-            <!-- accessory -->
-
-            <div
-                style="
-                    position:absolute;
-                    top:-14px;
-                    left:50%;
-                    transform:translateX(-50%);
-                    font-size:18px;
-                    z-index:5;
-                "
-            >
-                ${accessory.icon}
-            </div>
+  const accessory = {
+    flower: "🌸",
+    bow: "🎀",
+    crown: "👑",
+    star: "⭐"
+  }[outfit.accessory] || "🌸";
 
 
-            <!-- hair -->
+  preview.innerHTML = `
+    <div style="
+      position:relative;
+      font-size:54px;
+      line-height:1;
+      text-align:center;
+    ">
+      ${hair}
+      <div style="
+        font-size:42px;
+        margin-top:-8px;
+      ">👧🏻</div>
+      <div style="
+        font-size:30px;
+        margin-top:-7px;
+      ">${dress}</div>
+      <div style="
+        position:absolute;
+        top:-16px;
+        right:15px;
+        font-size:20px;
+      ">${accessory}</div>
+    </div>
+  `;
 
-            <div
-                style="
-                    position:absolute;
-                    top:10px;
-                    left:50%;
-                    transform:translateX(-50%);
-                    width:55px;
-                    height:60px;
-                    border-radius:50% 50% 45% 45%;
-                    background:${hair.color};
-                    z-index:1;
-                "
-            ></div>
-
-
-            <!-- face -->
-
-            <div
-                style="
-                    position:absolute;
-                    top:18px;
-                    left:50%;
-                    transform:translateX(-50%);
-                    width:39px;
-                    height:39px;
-                    border-radius:50%;
-                    background:#f6d2ba;
-                    z-index:2;
-                    box-shadow:
-                        inset 0 -2px 0 rgba(100,50,50,.05);
-                "
-            >
-
-                <span
-                    style="
-                        position:absolute;
-                        left:8px;
-                        top:17px;
-                        font-size:7px;
-                    "
-                >●</span>
-
-                <span
-                    style="
-                        position:absolute;
-                        right:8px;
-                        top:17px;
-                        font-size:7px;
-                    "
-                >●</span>
-
-            </div>
+}
 
 
-            <!-- dress -->
+/* =========================================================
+   INTERACTION
+   ========================================================= */
 
-            <div
-                style="
-                    position:absolute;
-                    top:53px;
-                    left:50%;
-                    transform:translateX(-50%);
-                    width:55px;
-                    height:52px;
-                    border-radius:18px 18px 10px 10px;
-                    background:${dress.color};
-                    z-index:2;
-                    box-shadow:
-                        inset 0 -5px 0 rgba(90,60,100,.08);
-                "
-            ></div>
+let currentInteraction = null;
+
+function getNearestNPC() {
+
+  let nearest = null;
+  let nearestDistance = Infinity;
 
 
-            <!-- arms -->
+  for (const npc of npcs) {
 
-            <div
-                style="
-                    position:absolute;
-                    top:61px;
-                    left:2px;
-                    width:14px;
-                    height:30px;
-                    border-radius:10px;
-                    background:#f6d2ba;
-                    transform:rotate(12deg);
-                    z-index:1;
-                "
-            ></div>
-
-            <div
-                style="
-                    position:absolute;
-                    top:61px;
-                    right:2px;
-                    width:14px;
-                    height:30px;
-                    border-radius:10px;
-                    background:#f6d2ba;
-                    transform:rotate(-12deg);
-                    z-index:1;
-                "
-            ></div>
+    const d =
+      distance(
+        player.x,
+        player.y,
+        npc.x,
+        npc.y
+      );
 
 
-            <!-- shoes -->
+    if (
+      d < nearestDistance &&
+      d < 100
+    ) {
 
-            <div
-                style="
-                    position:absolute;
-                    bottom:0;
-                    left:15px;
-                    width:16px;
-                    height:10px;
-                    border-radius:8px;
-                    background:#725873;
-                "
-            ></div>
+      nearest = npc;
+      nearestDistance = d;
 
-            <div
-                style="
-                    position:absolute;
-                    bottom:0;
-                    right:15px;
-                    width:16px;
-                    height:10px;
-                    border-radius:8px;
-                    background:#725873;
-                "
-            ></div>
+    }
 
-        </div>
+  }
 
+  return nearest;
+
+}
+
+
+function getNearestLandmark() {
+
+  let nearest = null;
+  let nearestDistance = Infinity;
+
+
+  for (const landmark of landmarks) {
+
+    const centerX =
+      landmark.x +
+      landmark.w / 2;
+
+    const centerY =
+      landmark.y +
+      landmark.h / 2;
+
+
+    const d =
+      distance(
+        player.x,
+        player.y,
+        centerX,
+        centerY
+      );
+
+
+    if (
+      d < nearestDistance &&
+      d < 150
+    ) {
+
+      nearest = landmark;
+      nearestDistance = d;
+
+    }
+
+  }
+
+  return nearest;
+
+}
+
+
+function updateInteraction() {
+
+  const box =
+    document.getElementById(
+      "interactBox"
+    );
+
+  if (!box) {
+    return;
+  }
+
+
+  const npc =
+    getNearestNPC();
+
+
+  if (npc) {
+
+    currentInteraction = {
+      type: "npc",
+      target: npc
+    };
+
+
+    box.innerHTML = `
+      <b>💬 ${npc.name}</b>
+      <span>Press <strong>E</strong> to talk</span>
     `;
 
-}
+    box.classList.add("show");
+
+    return;
+
+  }
 
 
-/* =========================================================
-   SAVE OUTFIT
-========================================================= */
+  const landmark =
+    getNearestLandmark();
 
-function saveOutfit(){
 
-    gameState.outfit = {
+  if (landmark) {
 
-        hair:
-            outfit.hair,
-
-        dress:
-            outfit.dress,
-
-        accessory:
-            outfit.accessory
-
+    currentInteraction = {
+      type: "landmark",
+      target: landmark
     };
 
 
-    gameState.player = {
+    box.innerHTML = `
+      <b>✨ ${landmark.name}</b>
+      <span>Press <strong>E</strong> to explore</span>
+    `;
 
-        x: player.x,
+    box.classList.add("show");
 
-        y: player.y,
+    return;
 
-        direction:
-            player.direction
-
-    };
-
-
-    saveGame();
+  }
 
 
-    showToast(
-        "✨ Eunseorin's outfit has been saved!"
-    );
+  currentInteraction = null;
+
+  box.classList.remove("show");
 
 }
 
 
 /* =========================================================
-   OUTFIT PANEL
-========================================================= */
+   INTERACT
+   ========================================================= */
 
-function toggleOutfit(){
+function interact() {
 
-    if(!outfitPanel) return;
+  if (!currentInteraction) {
+    return;
+  }
 
 
-    outfitPanel.classList.toggle(
-        "closed"
+  if (
+    currentInteraction.type === "npc"
+  ) {
+
+    talkToNPC(
+      currentInteraction.target
+    );
+
+  }
+
+
+  if (
+    currentInteraction.type === "landmark"
+  ) {
+
+    exploreLandmark(
+      currentInteraction.target
+    );
+
+  }
+
+}
+
+
+window.interact = interact;
+
+
+/* =========================================================
+   NPC DIALOGUE
+   ========================================================= */
+
+function talkToNPC(npc) {
+
+  const dialog =
+    document.getElementById(
+      "dialog"
+    );
+
+  const dialogName =
+    document.getElementById(
+      "dialogName"
+    );
+
+  const dialogText =
+    document.getElementById(
+      "dialogText"
     );
 
 
-    const isClosed =
-        outfitPanel.classList.contains(
-            "closed"
+  if (!dialog) {
+    return;
+  }
+
+
+  dialogName.textContent =
+    npc.name;
+
+
+  dialogText.textContent =
+    npc.dialogue[npc.line];
+
+
+  npc.line =
+    (npc.line + 1) %
+    npc.dialogue.length;
+
+
+  dialog.classList.add(
+    "show"
+  );
+
+}
+
+
+/* =========================================================
+   CLOSE DIALOGUE
+   ========================================================= */
+
+function closeDialog() {
+
+  const dialog =
+    document.getElementById(
+      "dialog"
+    );
+
+  if (dialog) {
+    dialog.classList.remove(
+      "show"
+    );
+  }
+
+}
+
+
+/* click dialogue to close */
+
+const dialogElement =
+  document.getElementById("dialog");
+
+if (dialogElement) {
+
+  dialogElement.addEventListener(
+    "click",
+    closeDialog
+  );
+
+}
+
+
+/* =========================================================
+   LANDMARK EXPLORATION
+   ========================================================= */
+
+function exploreLandmark(
+  landmark
+) {
+
+  const messages = {
+
+    "Celestia Castle":
+      "The castle doors shimmer with mysterious magic...",
+
+    "Whispering Forest":
+      "You hear the trees whispering an ancient melody...",
+
+    "Central Plaza":
+      "The heart of Cloudhaven feels peaceful and warm.",
+
+    "Cloudhaven Village":
+      "Tiny homes, cozy lights, and friendly faces surround you.",
+
+    "Your Home":
+      "Home sweet home. You can make this place yours someday. ♡",
+
+    "Pet Garden":
+      "You hear a tiny bunny hopping through the flowers.",
+
+    "Sky Dock":
+      "Airships travel between the floating islands from here.",
+
+    "Starfall Bridge":
+      "Stars seem to sparkle beneath the bridge..."
+  };
+
+
+  showToast(
+    messages[landmark.name] ||
+    `You discovered ${landmark.name}!`
+  );
+
+}
+
+
+/* =========================================================
+   TOAST
+   ========================================================= */
+
+let toastTimer = null;
+
+function showToast(message) {
+
+  const toast =
+    document.getElementById(
+      "toast"
+    );
+
+  if (!toast) {
+    return;
+  }
+
+
+  toast.textContent =
+    message;
+
+  toast.classList.add(
+    "show"
+  );
+
+
+  clearTimeout(
+    toastTimer
+  );
+
+
+  toastTimer =
+    setTimeout(
+      () => {
+
+        toast.classList.remove(
+          "show"
         );
 
-
-    if(openOutfitButton){
-
-        openOutfitButton.style.display =
-            isClosed
-                ? "block"
-                : "none";
-
-    }
-
-}
-
-
-/* =========================================================
-   INITIAL OUTFIT STATE
-========================================================= */
-
-function initializeOutfit(){
-
-    updateOutfitButtons();
-
-    updatePreview();
-
-
-    /*
-       If outfit panel doesn't have
-       "closed", close it first.
-    */
-
-    if(outfitPanel){
-
-        if(
-            !outfitPanel.classList.contains(
-                "closed"
-            )
-        ){
-
-            outfitPanel.classList.add(
-                "closed"
-            );
-
-        }
-
-    }
-
-
-    if(openOutfitButton){
-
-        openOutfitButton.style.display =
-            "block";
-
-    }
-
-}
-
-
-setupOutfitOptions();
-
-initializeOutfit();
-
-
-/* =========================================================
-   BUTTON EVENTS
-========================================================= */
-
-if(saveOutfitButton){
-
-    /*
-       HTML currently uses onclick,
-       but this is safe too.
-    */
-
-    saveOutfitButton.addEventListener(
-        "click",
-        saveOutfit
+      },
+      2200
     );
-
-}
-
-
-if(closeOutfitButton){
-
-    closeOutfitButton.addEventListener(
-        "click",
-        toggleOutfit
-    );
-
-}
-
-
-if(openOutfitButton){
-
-    openOutfitButton.addEventListener(
-        "click",
-        toggleOutfit
-    );
-
-}
-
-
-/* =========================================================
-   MAKE INLINE HTML EVENTS WORK
-========================================================= */
-
-window.toggleOutfit =
-    toggleOutfit;
-
-window.saveOutfit =
-    saveOutfit;
-
-window.interact =
-    interact;
-
-
-/* =========================================================
-   DRAW PLAYER
-========================================================= */
-
-function drawPlayer(){
-
-    const x =
-        screenX(player.x);
-
-    const y =
-        screenY(player.y);
-
-
-    /*
-       Walking bounce
-    */
-
-    let bounce = 0;
-
-    if(player.moving){
-
-        bounce =
-            Math.sin(
-                performance.now() / 90
-            ) * 2.5;
-
-    }
-
-
-    ctx.save();
-
-    ctx.translate(
-        x,
-        y + bounce
-    );
-
-
-    /*
-       Shadow
-    */
-
-    ctx.fillStyle =
-        "rgba(42,28,55,.18)";
-
-    ctx.beginPath();
-
-    ctx.ellipse(
-        0,
-        27,
-        24,
-        8,
-        0,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-
-    /*
-       Outfit color
-    */
-
-    const dress =
-        outfitData.dress[
-            outfit.dress
-        ]?.color ||
-        "#b9a1df";
-
-
-    const hair =
-        outfitData.hair[
-            outfit.hair
-        ]?.color ||
-        "#704b42";
-
-
-    /*
-       Hair back
-    */
-
-    ctx.fillStyle =
-        hair;
-
-    ctx.beginPath();
-
-    ctx.arc(
-        0,
-        -17,
-        19,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-
-    /*
-       Hair side locks
-    */
-
-    ctx.fillRect(
-        -17,
-        -17,
-        9,
-        35
-    );
-
-    ctx.fillRect(
-        8,
-        -17,
-        9,
-        35
-    );
-
-
-    /*
-       Face
-    */
-
-    ctx.fillStyle =
-        "#f6d2ba";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        0,
-        -13,
-        13,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-
-    /*
-       Hair fringe
-    */
-
-    ctx.fillStyle =
-        hair;
-
-    ctx.beginPath();
-
-    ctx.arc(
-        0,
-        -20,
-        14,
-        Math.PI,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-
-    /*
-       Eyes
-    */
-
-    ctx.fillStyle =
-        "#3b3043";
-
-
-    ctx.beginPath();
-
-    ctx.arc(
-        -5,
-        -12,
-        1.8,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.arc(
-        5,
-        -12,
-        1.8,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-
-    /*
-       Body / dress
-    */
-
-    ctx.fillStyle =
-        dress;
-
-    ctx.beginPath();
-
-    ctx.roundRect(
-        -15,
-        0,
-        30,
-        34,
-        10
-    );
-
-    ctx.fill();
-
-
-    /*
-       Dress detail
-    */
-
-    ctx.fillStyle =
-        "rgba(255,255,255,.38)";
-
-    ctx.fillRect(
-        -3,
-        3,
-        6,
-        27
-    );
-
-
-    /*
-       Arms
-    */
-
-    ctx.fillStyle =
-        "#f6d2ba";
-
-
-    ctx.beginPath();
-
-    ctx.roundRect(
-        -22,
-        4,
-        8,
-        23,
-        5
-    );
-
-    ctx.roundRect(
-        14,
-        4,
-        8,
-        23,
-        5
-    );
-
-    ctx.fill();
-
-
-    /*
-       Legs
-    */
-
-    ctx.fillStyle =
-        "#6f5877";
-
-
-    ctx.fillRect(
-        -10,
-        29,
-        7,
-        12
-    );
-
-    ctx.fillRect(
-        3,
-        29,
-        7,
-        12
-    );
-
-
-    /*
-       Shoes
-    */
-
-    ctx.fillStyle =
-        "#4f3e57";
-
-
-    ctx.beginPath();
-
-    ctx.roundRect(
-        -13,
-        38,
-        10,
-        6,
-        4
-    );
-
-    ctx.roundRect(
-        3,
-        38,
-        10,
-        6,
-        4
-    );
-
-    ctx.fill();
-
-
-    /*
-       Accessory
-    */
-
-    const accessory =
-        outfitData.accessory[
-            outfit.accessory
-        ]?.icon;
-
-
-    if(accessory){
-
-        ctx.font =
-            "15px sans-serif";
-
-        ctx.textAlign =
-            "center";
-
-        ctx.textBaseline =
-            "middle";
-
-        ctx.fillText(
-            accessory,
-            0,
-            -39
-        );
-
-    }
-
-
-    /*
-       Creator badge
-    */
-
-    ctx.font =
-        "13px sans-serif";
-
-    ctx.fillText(
-        "👑",
-        0,
-        -55
-    );
-
-
-    /*
-       Name
-    */
-
-    ctx.font =
-        "700 10px DM Sans, sans-serif";
-
-    ctx.fillStyle =
-        "#ffffff";
-
-    ctx.shadowColor =
-        "rgba(40,25,50,.55)";
-
-    ctx.shadowBlur = 5;
-
-    ctx.fillText(
-        "Eunseorin",
-        0,
-        59
-    );
-
-
-    ctx.restore();
-
-}
-
-
-/* =========================================================
-   SPARKLES
-========================================================= */
-
-function drawSparkles(){
-
-    const time =
-        performance.now() / 1000;
-
-
-    for(const sparkle of sparkles){
-
-        const alpha =
-            (
-                Math.sin(
-                    time * 2 +
-                    sparkle.phase
-                ) + 1
-            ) / 2;
-
-
-        const x =
-            screenX(sparkle.x);
-
-        const y =
-            screenY(sparkle.y);
-
-
-        if(
-            x < -20 ||
-            x > W + 20 ||
-            y < -20 ||
-            y > H + 20
-        ){
-
-            continue;
-
-        }
-
-
-        ctx.save();
-
-        ctx.globalAlpha =
-            alpha * .6;
-
-        ctx.fillStyle =
-            "#fff6ff";
-
-        ctx.font =
-            `${sparkle.size * 3}px serif`;
-
-        ctx.textAlign =
-            "center";
-
-        ctx.fillText(
-            "✦",
-            x,
-            y
-        );
-
-        ctx.restore();
-
-    }
 
 }
 
 
 /* =========================================================
    MINIMAP
-========================================================= */
+   ========================================================= */
 
-function drawMinimap(){
+function drawMinimap() {
 
-    if(!mctx) return;
-
-
-    const mw = mini.width;
-    const mh = mini.height;
+  if (!mctx || !mini) {
+    return;
+  }
 
 
-    /*
-       Background
-    */
-
-    mctx.clearRect(
-        0,
-        0,
-        mw,
-        mh
-    );
+  mctx.clearRect(
+    0,
+    0,
+    mini.width,
+    mini.height
+  );
 
 
-    mctx.fillStyle =
-        "#7ea77a";
+  const sx =
+    mini.width /
+    WORLD.width;
 
-    mctx.fillRect(
-        0,
-        0,
-        mw,
-        mh
-    );
+  const sy =
+    mini.height /
+    WORLD.height;
 
 
-    /*
-       Paths
-    */
+  /* world */
 
-    mctx.fillStyle =
-        "#d9c6a8";
+  mctx.fillStyle =
+    "#9dc18f";
 
-    mctx.fillRect(
-        mw * .49,
-        mh * .20,
-        5,
-        mh * .58
-    );
-
-    mctx.fillRect(
-        mw * .48,
-        mh * .48,
-        mw * .36,
-        5
-    );
+  mctx.fillRect(
+    0,
+    0,
+    mini.width,
+    mini.height
+  );
 
 
-    /*
-       Landmarks
-    */
+  /* water / edge */
 
-    for(const landmark of landmarks){
+  mctx.strokeStyle =
+    "rgba(255,255,255,.7)";
 
-        const x =
-            (
-                landmark.x +
-                landmark.w / 2
-            ) /
-            WORLD.width *
-            mw;
+  mctx.lineWidth = 3;
 
-        const y =
-            (
-                landmark.y +
-                landmark.h / 2
-            ) /
-            WORLD.height *
-            mh;
+  mctx.strokeRect(
+    3,
+    3,
+    mini.width - 6,
+    mini.height - 6
+  );
 
 
-        mctx.fillStyle =
-            "#c6a8df";
+  /* landmarks */
 
-
-        mctx.beginPath();
-
-        mctx.arc(
-            x,
-            y,
-            4,
-            0,
-            Math.PI * 2
-        );
-
-        mctx.fill();
-
-    }
-
-
-    /*
-       Friends
-    */
-
-    for(const friend of players){
-
-        const x =
-            friend.x /
-            WORLD.width *
-            mw;
-
-        const y =
-            friend.y /
-            WORLD.height *
-            mh;
-
-
-        mctx.fillStyle =
-            "#f8d36e";
-
-
-        mctx.beginPath();
-
-        mctx.arc(
-            x,
-            y,
-            3,
-            0,
-            Math.PI * 2
-        );
-
-        mctx.fill();
-
-    }
-
-
-    /*
-       Player
-    */
-
-    const px =
-        player.x /
-        WORLD.width *
-        mw;
-
-    const py =
-        player.y /
-        WORLD.height *
-        mh;
-
+  for (const landmark of landmarks) {
 
     mctx.fillStyle =
-        "#ffffff";
+      landmark.type === "castle"
+        ? "#b48dd8"
+        : "#e3c6a1";
+
+
+    mctx.fillRect(
+      landmark.x * sx,
+      landmark.y * sy,
+      landmark.w * sx,
+      landmark.h * sy
+    );
+
+  }
+
+
+  /* NPCs */
+
+  mctx.fillStyle =
+    "#ffffff";
+
+  for (const npc of npcs) {
 
     mctx.beginPath();
 
     mctx.arc(
-        px,
-        py,
-        5,
-        0,
-        Math.PI * 2
+      npc.x * sx,
+      npc.y * sy,
+      2,
+      0,
+      Math.PI * 2
     );
 
     mctx.fill();
 
+  }
 
-    mctx.strokeStyle =
-        "#70539b";
 
-    mctx.lineWidth = 2;
+  /* player */
 
-    mctx.stroke();
+  mctx.fillStyle =
+    "#ffffff";
+
+  mctx.beginPath();
+
+  mctx.arc(
+    player.x * sx,
+    player.y * sy,
+    4,
+    0,
+    Math.PI * 2
+  );
+
+  mctx.fill();
+
+
+  mctx.strokeStyle =
+    "#6c4d8c";
+
+  mctx.lineWidth = 1;
+
+  mctx.stroke();
 
 }
 
 
 /* =========================================================
-   DAY / NIGHT
-========================================================= */
+   RANDOM SPARKLES
+   ========================================================= */
 
-function updateTime(delta){
+function createSparkle() {
 
-    /*
-       Very slow world clock.
-    */
+  sparkles.push({
 
-    gameState.time +=
-        delta * 0.015;
+    x:
+      player.x +
+      (Math.random() - 0.5) *
+      500,
+
+    y:
+      player.y +
+      (Math.random() - 0.5) *
+      350,
+
+    life: 1,
+
+    size:
+      2 +
+      Math.random() * 4
+
+  });
+
+}
 
 
-    if(
-        gameState.time >= 24
-    ){
+function updateSparkles(dt) {
 
-        gameState.time = 0;
+  for (
+    let i = sparkles.length - 1;
+    i >= 0;
+    i--
+  ) {
 
-        gameState.day += 1;
+    const sparkle =
+      sparkles[i];
+
+    sparkle.life -=
+      dt * 0.7;
+
+
+    sparkle.y -=
+      12 * dt;
+
+
+    if (
+      sparkle.life <= 0
+    ) {
+
+      sparkles.splice(
+        i,
+        1
+      );
 
     }
 
-
-    gameState.isNight =
-        gameState.time >= 19 ||
-        gameState.time < 6;
+  }
 
 }
 
 
-/* =========================================================
-   TOP STATUS UPDATE
-========================================================= */
+function drawSparkles() {
 
-function updateStatus(){
+  ctx.save();
 
-    const pills =
-        document.querySelectorAll(
-            ".status .pill"
-        );
+  for (const sparkle of sparkles) {
 
+    const x =
+      sparkle.x -
+      camera.x;
 
-    if(pills.length >= 2){
-
-        const hour =
-            Math.floor(
-                gameState.time
-            );
-
-        const minutes =
-            Math.floor(
-                (
-                    gameState.time -
-                    hour
-                ) * 60
-            );
+    const y =
+      sparkle.y -
+      camera.y;
 
 
-        const formattedHour =
-            (
-                hour % 12 ||
-                12
-            )
-            .toString()
-            .padStart(2, "0");
-
-
-        const formattedMinutes =
-            minutes
-                .toString()
-                .padStart(2, "0");
-
-
-        const suffix =
-            hour >= 12
-                ? "PM"
-                : "AM";
-
-
-        pills[0].textContent =
-            `${gameState.isNight ? "🌙" : "☀️"} Day ${gameState.day} · ${formattedHour}:${formattedMinutes} ${suffix}`;
-
-
-        pills[1].textContent =
-            gameState.isNight
-                ? "🌙 Cloudhaven"
-                : "☁️ Cloudhaven";
-
-    }
-
-}
-
-
-/* =========================================================
-   MAIN DRAW
-========================================================= */
-
-function draw(){
-
-    ctx.clearRect(
-        0,
-        0,
-        W,
-        H
-    );
-
-
-    /*
-       Background
-    */
-
-    drawBackground();
-
-    drawCelestial();
-
-    drawClouds();
-
-
-    /*
-       World
-    */
-
-    drawIsland();
-
-    drawPaths();
-
-    drawWater();
-
-    drawFlowers();
-
-    drawTrees();
-
-    drawHouses();
-
-    drawLandmarks();
-
-    drawPlayers();
-
-    drawSparkles();
-
-    drawPlayer();
-
-
-    /*
-       Minimap
-    */
-
-    drawMinimap();
-
-}
-
-
-/* =========================================================
-   NIGHT OVERLAY
-========================================================= */
-
-function drawNightOverlay(){
-
-    if(!gameState.isNight) return;
-
-
-    ctx.save();
+    ctx.globalAlpha =
+      sparkle.life;
 
     ctx.fillStyle =
-        "rgba(37,29,67,.24)";
+      "#ffffff";
 
-    ctx.fillRect(
-        0,
-        0,
-        W,
-        H
+
+    ctx.beginPath();
+
+    ctx.arc(
+      x,
+      y,
+      sparkle.size,
+      0,
+      Math.PI * 2
     );
 
+    ctx.fill();
 
-    /*
-       stars
-    */
+  }
 
-    ctx.fillStyle =
-        "rgba(255,255,255,.75)";
-
-    for(let i = 0; i < 35; i++){
-
-        const x =
-            (
-                i * 137
-            ) % W;
-
-        const y =
-            (
-                i * 71
-            ) % Math.min(
-                H * .45,
-                350
-            );
-
-
-        ctx.fillRect(
-            x,
-            y,
-            2,
-            2
-        );
-
-    }
-
-
-    ctx.restore();
-
-}
-
-
-/* =========================================================
-   FINAL RENDER
-========================================================= */
-
-function render(){
-
-    draw();
-
-    drawNightOverlay();
+  ctx.restore();
 
 }
 
 
 /* =========================================================
    GAME LOOP
-========================================================= */
+   ========================================================= */
 
 let lastTime =
-    performance.now();
+  performance.now();
+
+let sparkleTimer = 0;
+let saveTimer = 0;
+
+function gameLoop(time) {
+
+  let dt =
+    (time - lastTime) / 1000;
+
+  lastTime = time;
 
 
-function gameLoop(currentTime){
+  /* prevent huge movement after tab switching */
 
-    /*
-       Delta time in seconds
-    */
-
-    let delta =
-        (
-            currentTime -
-            lastTime
-        ) / 1000;
-
-
-    lastTime =
-        currentTime;
-
-
-    /*
-       Protect against tab switching
-    */
-
-    delta =
-        Math.min(
-            delta,
-            0.05
-        );
-
-
-    updateMovement(delta);
-
-    updateClouds(delta);
-
-    updateTime(delta);
-
-    updateCamera();
-
-    updateInteraction();
-
-    updateStatus();
-
-    render();
-
-
-    requestAnimationFrame(
-        gameLoop
+  dt =
+    Math.min(
+      dt,
+      0.033
     );
+
+
+  /* movement */
+
+  updateMovement(
+    dt
+  );
+
+
+  /* camera */
+
+  updateCamera(
+    dt
+  );
+
+
+  /* interaction */
+
+  updateInteraction();
+
+
+  /* sparkles */
+
+  sparkleTimer += dt;
+
+  if (
+    sparkleTimer > 0.7
+  ) {
+
+    createSparkle();
+
+    sparkleTimer = 0;
+
+  }
+
+  updateSparkles(dt);
+
+
+  /* autosave */
+
+  saveTimer += dt;
+
+  if (
+    saveTimer > 5
+  ) {
+
+    saveGame();
+
+    saveTimer = 0;
+
+  }
+
+
+  /* =========================
+     DRAW
+     ========================= */
+
+  drawBackground();
+
+  drawClouds(time);
+
+  drawIsland();
+
+  drawPaths();
+
+  drawLandmarks();
+
+  drawTrees();
+
+  drawFlowers();
+
+  drawNPCs();
+
+  drawSparkles();
+
+  drawPlayer();
+
+  drawMinimap();
+
+
+  requestAnimationFrame(
+    gameLoop
+  );
 
 }
 
 
-requestAnimationFrame(
-    gameLoop
-);
-
-
 /* =========================================================
-   AUTOSAVE
-========================================================= */
+   SAVE BUTTON
+   ========================================================= */
 
-setInterval(() => {
+const saveButton =
+  document.querySelector(
+    ".save"
+  );
 
-    gameState.player = {
+if (saveButton) {
 
-        x: player.x,
+  saveButton.addEventListener(
+    "click",
+    function () {
 
-        y: player.y,
+      saveGame();
 
-        direction:
-            player.direction
-
-    };
-
-
-    gameState.outfit = {
-
-        hair:
-            outfit.hair,
-
-        dress:
-            outfit.dress,
-
-        accessory:
-            outfit.accessory
-
-    };
-
-
-    saveGame();
-
-}, 5000);
-
-
-/* =========================================================
-   INITIAL CAMERA
-========================================================= */
-
-camera.x =
-    clamp(
-        player.x - W / 2,
-        0,
-        Math.max(
-            0,
-            WORLD.width - W
-        )
-    );
-
-
-camera.y =
-    clamp(
-        player.y - H / 2,
-        0,
-        Math.max(
-            0,
-            WORLD.height - H
-        )
-    );
-
-
-/* =========================================================
-   START MESSAGE
-========================================================= */
-
-setTimeout(() => {
-
-    showToast(
-        "✦ Welcome back to Cloudhaven, Eunseorin!"
-    );
-
-}, 700);
-
-
-/* =========================================================
-   DEBUG HELPER
-========================================================= */
-
-window.CELESTIA = {
-
-    player,
-
-    camera,
-
-    outfit,
-
-    gameState,
-
-    saveGame,
-
-    resetGame(){
-
-        localStorage.removeItem(
-            SAVE_KEY
-        );
-
-        location.reload();
+      showToast(
+        "Game saved ✦"
+      );
 
     }
+  );
 
-};
+}
+
+
+/* =========================================================
+   CHARACTER NAME
+   ========================================================= */
+
+const nameInput =
+  document.getElementById(
+    "characterName"
+  );
+
+if (nameInput) {
+
+  nameInput.value =
+    saveData.name;
+
+  nameInput.addEventListener(
+    "input",
+    function () {
+
+      saveData.name =
+        this.value ||
+        "Eunseorin";
+
+      updatePlayerName();
+
+      saveGame();
+
+    }
+  );
+
+}
+
+
+function updatePlayerName() {
+
+  const name =
+    saveData.name ||
+    "Eunseorin";
+
+
+  const elements =
+    document.querySelectorAll(
+      "#playerName"
+    );
+
+
+  elements.forEach(
+    element => {
+
+      element.textContent =
+        name;
+
+    }
+  );
+
+}
+
+
+/* =========================================================
+   INITIALIZE
+   ========================================================= */
+
+setupOutfitButtons();
+
+updateOutfitButtons();
+
+updatePlayerName();
+
+
+/* =========================================================
+   RESET GAME
+   ========================================================= */
+
+const resetButton =
+  document.querySelector(
+    ".resetGame"
+  );
+
+
+if (resetButton) {
+
+  resetButton.addEventListener(
+    "click",
+    function () {
+
+      const confirmed =
+        confirm(
+          "Reset your CELESTIA save?"
+        );
+
+
+      if (!confirmed) {
+        return;
+      }
+
+
+      localStorage.removeItem(
+        SAVE_KEY
+      );
+
+
+      location.reload();
+
+    }
+  );
+
+}
+
+
+/* =========================================================
+   EXPOSE FUNCTIONS FOR HTML
+   ========================================================= */
+
+window.toggleOutfit =
+  toggleOutfit;
+
+window.saveOutfit =
+  saveOutfit;
+
+
+/* =========================================================
+   START
+   ========================================================= */
+
+requestAnimationFrame(
+  gameLoop
+);
